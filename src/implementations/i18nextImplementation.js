@@ -93,7 +93,11 @@ export function getImplementation (i18n) {
       }
 
       if (!i18n.options.backend && !i18n.options.editor) return opts
-      const pickFrom = i18n.options.editor || i18n.options.backend
+      // Merge, don't pick-one: an `editor` block that only tunes presentation
+      // (e.g. `editor: { bodyStyle }`) used to shadow the `backend` block
+      // entirely, dropping projectId/version and leaving the editor unable to
+      // find the project. Editor fields win; backend fills the gaps.
+      const pickFrom = { ...i18n.options.backend, ...i18n.options.editor }
       return {
         ...opts,
         projectId: pickFrom.projectId,
