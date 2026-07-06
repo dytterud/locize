@@ -427,6 +427,21 @@
     if (!results[2]) return '';
     return decodeURIComponent(results[2].replace(/\+/g, ' '));
   }
+  var isDebug = function () {
+    if (typeof window === 'undefined') return false;
+    try {
+      return window.localStorage.getItem('locize-debug') === 'true' || getQsParameterByName('locizedebug') === 'true';
+    } catch (e) {
+      return false;
+    }
+  }();
+  function debugLog() {
+    var _console;
+    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+      args[_key] = arguments[_key];
+    }
+    if (isDebug) (_console = console).warn.apply(_console, ['[locize]'].concat(args));
+  }
   var _isInIframe = false;
   if (typeof window !== 'undefined') {
     try {
@@ -465,12 +480,14 @@
     }
     if (!api.origin) api.origin = getIframeUrl();
     if (!api.source || !api.source.postMessage || !api.initialized && allowedActionsBeforeInit.indexOf(action) < 0) {
-      pendingMsgs.push({
+      debugLog('queueing (editor not connected yet)', action, payload);
+      if (pendingMsgs.length < 100) pendingMsgs.push({
         action: action,
         payload: payload
       });
       return;
     }
+    debugLog('out', action, payload);
     if (api.legacy) {
       api.source.postMessage(_objectSpread$5({
         message: action
@@ -525,6 +542,9 @@
         if (repeat < 0 && api.initInterval) {
           clearInterval(api.initInterval);
           delete api.initInterval;
+          if (!api.initialized) {
+            debugLog('handshake gave up: editor never answered requestInitialize');
+          }
         }
       }, 2000);
     },
@@ -574,12 +594,19 @@
   if (typeof window !== 'undefined') {
     window.addEventListener('message', function (e) {
       var expectedOrigin = getExpectedIframeOrigin();
-      if (!expectedOrigin || e.origin !== expectedOrigin) return;
-      var _e$data = e.data,
-        sender = _e$data.sender,
-        action = _e$data.action,
-        message = _e$data.message,
-        payload = _e$data.payload;
+      if (!expectedOrigin || e.origin !== expectedOrigin) {
+        var _e$data;
+        if (((_e$data = e.data) === null || _e$data === void 0 ? void 0 : _e$data.sender) === 'i18next-editor-frame') {
+          debugLog('dropped editor message from unexpected origin', e.origin, 'expected', expectedOrigin);
+        }
+        return;
+      }
+      var _e$data2 = e.data,
+        sender = _e$data2.sender,
+        action = _e$data2.action,
+        message = _e$data2.message,
+        payload = _e$data2.payload;
+      debugLog('in', action || message, payload);
       if (message) {
         var usedEventName = getMappedLegacyEvent(message);
         if (handlers[usedEventName]) {
@@ -754,9 +781,11 @@
   api.addHandler('commitKeys', handler$6);
 
   function handler$5(payload) {
+    var _document$querySelect;
     api.initialized = true;
     clearInterval(api.initInterval);
     delete api.initInterval;
+    (_document$querySelect = document.querySelector('.locize-incontext-error')) === null || _document$querySelect === void 0 || _document$querySelect.remove();
     api.sendCurrentParsedContent();
     api.sendCurrentTargetLanguage();
   }
@@ -896,12 +925,17 @@
     sheet.insertRule(".i18next-editor-popup * { \n      -webkit-touch-callout: none; /* iOS Safari */\n      -webkit-user-select: none; /* Safari */\n      -khtml-user-select: none; /* Konqueror HTML */\n      -moz-user-select: none; /* Firefox */\n      -ms-user-select: none; /* Internet Explorer/Edge */\n      user-select: none; /* Non-prefixed version, currently supported by Chrome and Opera */\n    }");
     sheet.insertRule(".i18next-editor-popup .resizer-right {\n      width: 15px;\n      height: 100%;\n      background: transparent;\n      position: absolute;\n      right: -15px;\n      bottom: 0;\n      cursor: e-resize;\n    }");
     sheet.insertRule(".i18next-editor-popup .resizer-both {\n      width: 15px;\n      height: 15px;\n      background: transparent;\n      z-index: 10;\n      position: absolute;\n      right: -15px;\n      bottom: -15px;\n      cursor: se-resize;\n    }");
+    sheet.insertRule(".locize-incontext-ribbon {\n      cursor: pointer;\n      position: fixed;\n      bottom: 25px;\n      right: 25px;\n      display: inline-flex;\n      align-items: center;\n      justify-content: center;\n      width: 50px;\n      height: 50px;\n      background-color: rgba(249, 249, 249, 0.8);\n      -webkit-backdrop-filter: blur(3px);\n      backdrop-filter: blur(3px);\n      box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);\n      border-radius: 50%;\n    }");
+    sheet.insertRule(".locize-incontext-ribbon.locize-incontext-ribbon-left {\n      right: auto;\n      left: 25px;\n    }");
     sheet.insertRule(".i18next-editor-popup .resizer-bottom {\n      width: 100%;\n      height: 15px;\n      background: transparent;\n      position: absolute;\n      right: 0;\n      bottom: -15px;\n      cursor: s-resize;\n    }");
   }
-  function Ribbon(popupEle, onMaximize) {
+  function Ribbon(popupEle, onMaximize, ribbonPosition) {
     var ribbon = document.createElement('div');
     ribbon.setAttribute('data-i18next-editor-element', 'true');
-    ribbon.style = "\n  cursor: pointer;\n  position: fixed;\n  bottom: 25px;\n  right: 25px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 50px;\n  height: 50px;\n  background-color:  rgba(249, 249, 249, 0.2);\n  backdrop-filter: blur(3px);\n  box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);\n  border-radius: 50%;\n  ";
+    ribbon.classList.add('locize-incontext-ribbon');
+    if (ribbonPosition === 'bottom-left') {
+      ribbon.classList.add('locize-incontext-ribbon-left');
+    }
     ribbon.onclick = function () {
       onMaximize();
     };
@@ -926,7 +960,18 @@
     return image;
   }
   var popupId = 'i18next-editor-popup';
+  function showPopupError(msg) {
+    var popup = document.getElementById(popupId);
+    if (!popup || popup.querySelector('.locize-incontext-error')) return;
+    var err = document.createElement('div');
+    err.className = 'locize-incontext-error';
+    err.setAttribute('data-i18next-editor-element', 'true');
+    err.textContent = msg;
+    err.style = "\n  position: absolute;\n  top: 32px;\n  left: 0;\n  right: 0;\n  z-index: 102;\n  padding: 8px 10px;\n  background-color: ".concat(colors.warning, ";\n  color: #fff;\n  font: 13px sans-serif;\n  ");
+    popup.appendChild(err);
+  }
   function Popup(url, cb) {
+    var opt = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
     var popup = document.createElement('div');
     popup.setAttribute('id', popupId);
     popup.classList.add('i18next-editor-popup');
@@ -943,7 +988,7 @@
         setTimeout(function () {
           document.body.removeChild(ribbon);
         }, 1000);
-      });
+      }, opt.ribbonPosition);
       document.body.appendChild(ribbon);
       stopMouseTracking();
     }));
@@ -3581,13 +3626,9 @@
     var popups = document.getElementsByClassName('i18next-editor-popup');
     var elmnt = null;
     var overlay = null;
-    var currentZIndex = 100000;
     for (var i = 0; i < popups.length; i++) {
       var popup = popups[i];
       var header = getHeader(popup);
-      popup.onmousedown = function () {
-        this.style.zIndex = '' + ++currentZIndex;
-      };
       if (header) {
         header.parentPopup = popup;
         header.onmousedown = dragMouseDown;
@@ -3600,7 +3641,6 @@
       if (overlay) overlay.style.display = 'block';
       stopMouseTracking();
       elmnt = this.parentPopup;
-      elmnt.style.zIndex = '' + ++currentZIndex;
       e = e || window.event;
       pos3 = e.clientX;
       pos4 = e.clientY;
@@ -3883,7 +3923,7 @@
     var showInContext = opt.show || getQsParameterByName(opt.qsProp || 'incontext') === 'true';
     var scriptEle = document.getElementById('locize');
     var config = {};
-    ['projectId', 'version'].forEach(function (attr) {
+    ['projectId', 'version', 'ribbonPosition'].forEach(function (attr) {
       if (!scriptEle) return;
       var value = scriptEle.getAttribute(attr.toLowerCase()) || scriptEle.getAttribute('data-' + attr.toLowerCase());
       if (value === 'true') value = true;
@@ -3908,6 +3948,15 @@
       observer.start();
       startMouseTracking(observer);
       if (!isInIframe && !document.getElementById(popupId)) {
+        debugLog('starting InContext popup with config', config, 'iframe:', getIframeUrl());
+        if (!config.projectId) {
+          console.error('[locize] InContext editor: no projectId configured (script tag attribute, i18next editor/backend options or startStandalone options) - the editor will not find your project.');
+        }
+        setTimeout(function () {
+          if (api.initialized) return;
+          console.error('[locize] InContext editor did not connect within 15s. Likely causes: you are not logged in at locize (open https://www.locize.app in another tab and log in), the page CSP blocks frame-src ' + getIframeUrl() + ', or an adblocker blocked the iframe. Enable diagnostics via localStorage.setItem(\'locize-debug\', \'true\').');
+          showPopupError('Could not connect to the locize editor. Are you logged in at locize.app? See the browser console for details.');
+        }, 15000);
         var popupEl = Popup(getIframeUrl(), function () {
           var _document$getElementB;
           api.source = (_document$getElementB = document.getElementById('i18next-editor-iframe')) === null || _document$getElementB === void 0 ? void 0 : _document$getElementB.contentWindow;
@@ -3917,7 +3966,7 @@
             delete api.initInterval;
           }
           api.requestInitialize(config);
-        });
+        }, config);
         document.documentElement.append(popupEl);
         initDragElement();
         initResizeElement();
