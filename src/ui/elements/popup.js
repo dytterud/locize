@@ -1,4 +1,4 @@
-// import { colors } from '../../vars.js'
+import { colors } from '../../vars.js'
 import { sheet } from '../stylesheet.js'
 import { startMouseTracking, stopMouseTracking } from '../mouseDistance.js'
 
@@ -66,6 +66,32 @@ if (sheet) {
       cursor: se-resize;
     }`
   )
+  // Positional styles live in the stylesheet (not inline) so integrators
+  // can reposition the minimized ribbon with plain CSS on this class.
+  sheet.insertRule(
+    `.locize-incontext-ribbon {
+      cursor: pointer;
+      position: fixed;
+      bottom: 25px;
+      right: 25px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 50px;
+      height: 50px;
+      background-color: rgba(249, 249, 249, 0.8);
+      -webkit-backdrop-filter: blur(3px);
+      backdrop-filter: blur(3px);
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+      border-radius: 50%;
+    }`
+  )
+  sheet.insertRule(
+    `.locize-incontext-ribbon.locize-incontext-ribbon-left {
+      right: auto;
+      left: 25px;
+    }`
+  )
   sheet.insertRule(
     `.i18next-editor-popup .resizer-bottom {
       width: 100%;
@@ -79,24 +105,13 @@ if (sheet) {
   )
 }
 
-function Ribbon (popupEle, onMaximize) {
+function Ribbon (popupEle, onMaximize, ribbonPosition) {
   const ribbon = document.createElement('div')
   ribbon.setAttribute('data-i18next-editor-element', 'true')
-  ribbon.style = `
-  cursor: pointer;
-  position: fixed;
-  bottom: 25px;
-  right: 25px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 50px;
-  height: 50px;
-  background-color:  rgba(249, 249, 249, 0.2);
-  backdrop-filter: blur(3px);
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
-  border-radius: 50%;
-  `
+  ribbon.classList.add('locize-incontext-ribbon')
+  if (ribbonPosition === 'bottom-left') {
+    ribbon.classList.add('locize-incontext-ribbon-left')
+  }
 
   ribbon.onclick = () => {
     onMaximize()
@@ -139,7 +154,31 @@ function Minimize (popupEle, onMinimize) {
 
 export const popupId = 'i18next-editor-popup'
 
-export function Popup (url, cb) {
+// One-shot error banner inside the popup, shown when the editor never
+// connects (blocked iframe, not logged in, CSP, ...). Removed again by
+// handleConfirmInitialized if a late handshake succeeds.
+export function showPopupError (msg) {
+  const popup = document.getElementById(popupId)
+  if (!popup || popup.querySelector('.locize-incontext-error')) return
+  const err = document.createElement('div')
+  err.className = 'locize-incontext-error'
+  err.setAttribute('data-i18next-editor-element', 'true')
+  err.textContent = msg
+  err.style = `
+  position: absolute;
+  top: 32px;
+  left: 0;
+  right: 0;
+  z-index: 102;
+  padding: 8px 10px;
+  background-color: ${colors.warning};
+  color: #fff;
+  font: 13px sans-serif;
+  `
+  popup.appendChild(err)
+}
+
+export function Popup (url, cb, opt = {}) {
   const popup = document.createElement('div')
   popup.setAttribute('id', popupId)
   popup.classList.add('i18next-editor-popup')
@@ -192,7 +231,7 @@ export function Popup (url, cb) {
         setTimeout(() => {
           document.body.removeChild(ribbon)
         }, 1000)
-      })
+      }, opt.ribbonPosition)
 
       document.body.appendChild(ribbon)
       stopMouseTracking()

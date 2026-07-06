@@ -108,6 +108,31 @@ i18next.init({
 })
 ```
 
+## customizing the minimized button
+
+The minimized editor button (bottom-right circle) can be moved to the left via option:
+
+```js
+i18next.use(locizeEditorPlugin({ ribbonPosition: 'bottom-left' }))
+// or startStandalone({ ribbonPosition: 'bottom-left' })
+// or <script id="locize" ribbonposition="bottom-left" ...>
+```
+
+For full control, target the stable CSS class:
+
+```css
+.locize-incontext-ribbon { bottom: 80px; right: 10px; }
+```
+
+## troubleshooting
+
+If the editor popup stays blank or "could not connect" is shown:
+
+- Make sure you are logged in at https://www.locize.app (open it in another tab, log in, reload your page).
+- Your page's Content-Security-Policy must allow `frame-src https://incontext.locize.app`.
+- An adblocker may block the editor iframe.
+- Enable verbose diagnostics with `localStorage.setItem('locize-debug', 'true')` (or `?locizeDebug=true`) and check the browser console.
+
 ## not using i18next (messageformat, fluent, ...)
 
 Not using i18next currently only the option to show your website inside the locize incontext view (https://www.locize.com/docs/incontext).

@@ -2,10 +2,10 @@ import { parseTree, setImplementation } from './parser.js'
 import { createObserver } from './observer.js'
 import { startMouseTracking } from './ui/mouseDistance.js'
 import { initDragElement, initResizeElement } from './ui/popup.js'
-import { Popup, popupId } from './ui/elements/popup.js'
+import { Popup, popupId, showPopupError } from './ui/elements/popup.js'
 import { getIframeUrl } from './vars.js'
 import { api } from './api/index.js'
-import { isInIframe, getQsParameterByName } from './utils.js'
+import { isInIframe, getQsParameterByName, debugLog } from './utils.js'
 import * as implementations from './implementations/index.js'
 
 const dummyImplementation = implementations.dummy.getImplementation()
@@ -26,7 +26,7 @@ export function start (
   const scriptEle = document.getElementById('locize')
 
   let config = {}
-  ;['projectId', 'version'].forEach(attr => {
+  ;['projectId', 'version', 'ribbonPosition'].forEach(attr => {
     if (!scriptEle) return
     let value =
       scriptEle.getAttribute(attr.toLowerCase()) ||
@@ -84,6 +84,26 @@ export function start (
     // contents set up. The observer disconnects after a short window
     // so an intentional teardown later in the session is unaffected.
     if (!isInIframe && !document.getElementById(popupId)) {
+      debugLog('starting InContext popup with config', config, 'iframe:', getIframeUrl())
+      if (!config.projectId) {
+        console.error(
+          '[locize] InContext editor: no projectId configured (script tag attribute, i18next editor/backend options or startStandalone options) - the editor will not find your project.'
+        )
+      }
+      // Single watchdog for every silent-failure path (iframe blocked by
+      // CSP/adblocker, user not logged in, editor crashed, origin mismatch):
+      // if no confirmInitialized arrived, say so instead of a blank popup.
+      setTimeout(() => {
+        if (api.initialized) return
+        console.error(
+          '[locize] InContext editor did not connect within 15s. Likely causes: you are not logged in at locize (open https://www.locize.app in another tab and log in), the page CSP blocks frame-src ' +
+            getIframeUrl() +
+            ', or an adblocker blocked the iframe. Enable diagnostics via localStorage.setItem(\'locize-debug\', \'true\').'
+        )
+        showPopupError(
+          'Could not connect to the locize editor. Are you logged in at locize.app? See the browser console for details.'
+        )
+      }, 15000)
       const popupEl = Popup(getIframeUrl(), () => {
         // The iframe `load` event fires on every navigation, including
         // the implicit re-navigation that the browser performs when our
@@ -101,7 +121,7 @@ export function start (
           delete api.initInterval
         }
         api.requestInitialize(config)
-      })
+      }, config)
       document.documentElement.append(popupEl)
       initDragElement()
       initResizeElement()

@@ -1,7 +1,7 @@
 import { getIframeUrl } from '../vars.js'
 import { store } from '../store.js'
 import { uninstrumentedStore } from '../uninstrumentedStore.js'
-import { debounce } from '../utils.js'
+import { debounce, debugLog } from '../utils.js'
 
 const legacyEventMapping = {
   committed: 'commitKeys'
@@ -43,12 +43,14 @@ export function sendMessage (action, payload) {
     !api.source.postMessage ||
     (!api.initialized && allowedActionsBeforeInit.indexOf(action) < 0)
   ) {
-    // console.warn('out nok queuing - ', api.source, api.origin, action, payload);
-    pendingMsgs.push({ action, payload })
+    debugLog('queueing (editor not connected yet)', action, payload)
+    // ponytail: hard cap instead of a growing queue - if the editor never
+    // connects, older messages are worthless anyway
+    if (pendingMsgs.length < 100) pendingMsgs.push({ action, payload })
     return
   }
 
-  // console.warn('out ok - ', api.source, api.origin, action, payload)
+  debugLog('out', action, payload)
 
   if (api.legacy) {
     api.source.postMessage(
@@ -117,6 +119,9 @@ export const api = {
       if (repeat < 0 && api.initInterval) {
         clearInterval(api.initInterval)
         delete api.initInterval
+        if (!api.initialized) {
+          debugLog('handshake gave up: editor never answered requestInitialize')
+        }
       }
     }, 2000)
   },
@@ -178,10 +183,15 @@ const getExpectedIframeOrigin = () => {
 if (typeof window !== 'undefined') {
   window.addEventListener('message', e => {
     const expectedOrigin = getExpectedIframeOrigin()
-    if (!expectedOrigin || e.origin !== expectedOrigin) return
+    if (!expectedOrigin || e.origin !== expectedOrigin) {
+      if (e.data?.sender === 'i18next-editor-frame') {
+        debugLog('dropped editor message from unexpected origin', e.origin, 'expected', expectedOrigin)
+      }
+      return
+    }
 
     const { sender, /* senderAPIVersion, */ action, message, payload } = e.data
-    // console.warn(sender, action, message, payload)
+    debugLog('in', action || message, payload)
 
     if (message) {
       const usedEventName = getMappedLegacyEvent(message)

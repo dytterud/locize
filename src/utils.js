@@ -234,6 +234,22 @@ export function getQsParameterByName (name, url) {
   return decodeURIComponent(results[2].replace(/\+/g, ' '))
 }
 
+// Opt-in diagnostics: localStorage.setItem('locize-debug', 'true') or ?locizeDebug=true
+const isDebug = (() => {
+  if (typeof window === 'undefined') return false
+  try {
+    return (
+      window.localStorage.getItem('locize-debug') === 'true' ||
+      getQsParameterByName('locizedebug') === 'true'
+    )
+  } catch (e) {
+    return false
+  }
+})()
+export function debugLog (...args) {
+  if (isDebug) console.warn('[locize]', ...args)
+}
+
 let _isInIframe = false
 if (typeof window !== 'undefined') {
   try {

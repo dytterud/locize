@@ -65,6 +65,11 @@ export function locizeEditorPlugin(opt?: {
   show?: boolean
   projectId?: string
   version?: string
+  /**
+   * Corner for the minimized editor button. For full control style the
+   * `.locize-incontext-ribbon` CSS class instead.
+   */
+  ribbonPosition?: 'bottom-right' | 'bottom-left'
 }): LocizePlugin
 
 /**
@@ -89,6 +94,7 @@ export function startStandalone(opt?: {
   show?: boolean
   projectId?: string
   version?: string
+  ribbonPosition?: 'bottom-right' | 'bottom-left'
   implementation?: Implementation
 }): void
 

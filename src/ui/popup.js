@@ -25,15 +25,12 @@ export function initDragElement () {
   const popups = document.getElementsByClassName('i18next-editor-popup')
   let elmnt = null
   let overlay = null
-  let currentZIndex = 100000 // TODO reset z index when a threshold is passed
+  // ponytail: there is only ever one popup; re-raising z-index on every
+  // mousedown only competed with itself (and grew unboundedly)
 
   for (let i = 0; i < popups.length; i++) {
     const popup = popups[i]
     const header = getHeader(popup)
-
-    popup.onmousedown = function () {
-      this.style.zIndex = '' + ++currentZIndex
-    }
 
     if (header) {
       header.parentPopup = popup
@@ -47,7 +44,6 @@ export function initDragElement () {
     stopMouseTracking()
 
     elmnt = this.parentPopup
-    elmnt.style.zIndex = '' + ++currentZIndex
 
     e = e || window.event
     // get the mouse cursor position at startup:
