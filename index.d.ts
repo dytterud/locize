@@ -78,6 +78,15 @@ export function locizeEditorPlugin(opt?: {
 export function setEditorLng(lng: string): void
 
 /**
+ * Programmatically toggle navigate-vs-edit mode of the InContext editor
+ * (same as the editor's pause/play button). While off, hover highlighting
+ * and click interception stop so the page can be used normally; content
+ * parsing keeps running.
+ */
+export function turnOn(): void
+export function turnOff(): void
+
+/**
  * To load the translations somewhere.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

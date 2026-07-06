@@ -1,6 +1,8 @@
 import { expectType } from 'tsd'
 import i18next from 'i18next'
 import {
+  turnOn,
+  turnOff,
   locizePlugin,
   locizeEditorPlugin,
   LocizePlugin,
@@ -13,6 +15,8 @@ import {
   startStandalone
 } from '../../index'
 
+expectType<void>(turnOn())
+expectType<void>(turnOff())
 expectType<LocizePlugin>(locizePlugin)
 expectType<LocizePlugin>(locizeEditorPlugin())
 expectType<LocizePlugin>(locizeEditorPlugin({ ribbonPosition: 'bottom-left' }))

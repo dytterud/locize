@@ -1,3 +1,11 @@
+### 4.3.0
+
+- feat: navigate-vs-edit mode, also exported as `turnOn()` / `turnOff()` from the package root (typed in `index.d.ts`/`index.d.mts`) so integrators can toggle it from their own UI. The editor can pause the InContext script via the (re-introduced, now actually implemented) `turnOff` / `turnOn` messages: while paused, hover highlighting and click interception stop and existing highlights are cleared, so the page behaves like a normal website and multi-step flows can be navigated between edits; content parsing keeps running so the on-page key list stays fresh. Maximizing the minimized popup no longer resumes highlighting while paused.
+- feat: click-to-locate. When the editor selects keys (`selectedKeys`), the page now scrolls the first matching element into view (smooth, centered) when it is off-screen, in addition to the existing selection highlight.
+- feat: touch/tablet support for the popup: drag and resize now use pointer events with `touch-action: none`, so they work with touch and pen input as well as mouse.
+- feat: accessibility basics on the script UI: the minimized ribbon and the minimize control are keyboard-operable buttons with aria-labels; the editor iframe carries a title.
+- fix: global parse backoff on high-churn pages. The per-element re-render suppression could not catch pages where mutations keep hitting different elements (animations, tickers); beyond 10 parses within 10 seconds, parsing is now held to ~1/second (mutated elements keep accumulating and are processed on the next run).
+
 ### 4.2.2
 
 - fix: the InContext editor stayed on the dashboard (no project opened) when a host configured both an `editor` block and a `backend` block and put `projectId` only in `backend` - e.g. locizify with `editor: { bodyStyle: '...' }` for presentation and `backend: { projectId, version }` for the connection. `getLocizeDetails` picked `i18n.options.editor || i18n.options.backend`, so a truthy presentation-only `editor` block shadowed `backend` entirely and dropped `projectId`/`version`. The two blocks are now merged (`{ ...backend, ...editor }`): editor fields still win, but `projectId`/`version` fall back to `backend`. Surfaced by the 4.2.0 missing-projectId startup `console.error`.

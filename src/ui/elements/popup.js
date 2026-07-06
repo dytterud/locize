@@ -1,6 +1,7 @@
 import { colors } from '../../vars.js'
 import { sheet } from '../stylesheet.js'
 import { startMouseTracking, stopMouseTracking } from '../mouseDistance.js'
+import { api } from '../../api/postMessage.js'
 
 import { minimizeIconUrl, locizeIconUrl } from './icons.js'
 
@@ -112,9 +113,18 @@ function Ribbon (popupEle, onMaximize, ribbonPosition) {
   if (ribbonPosition === 'bottom-left') {
     ribbon.classList.add('locize-incontext-ribbon-left')
   }
+  ribbon.setAttribute('role', 'button')
+  ribbon.setAttribute('tabindex', '0')
+  ribbon.setAttribute('aria-label', 'Open Locize editor')
 
   ribbon.onclick = () => {
     onMaximize()
+  }
+  ribbon.onkeydown = e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onMaximize()
+    }
   }
 
   // i18next Logo
@@ -133,6 +143,16 @@ function Minimize (popupEle, onMinimize) {
   image.src = minimizeIconUrl
   image.style.width = '24px'
   image.style.cursor = 'pointer'
+  image.setAttribute('role', 'button')
+  image.setAttribute('tabindex', '0')
+  image.setAttribute('alt', '')
+  image.setAttribute('aria-label', 'Minimize Locize editor')
+  image.onkeydown = e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      image.onclick()
+    }
+  }
 
   image.onclick = () => {
     popupEle.style.setProperty(
@@ -226,7 +246,8 @@ export function Popup (url, cb, opt = {}) {
       const ribbon = Ribbon(popup, () => {
         popup.style.animation = 'i18next-editor-animate-top 1s'
 
-        startMouseTracking()
+        // don't resume highlighting if the editor paused it (navigate mode)
+        if (api.editingEnabled !== false) startMouseTracking()
 
         setTimeout(() => {
           document.body.removeChild(ribbon)
@@ -240,6 +261,7 @@ export function Popup (url, cb, opt = {}) {
 
   const iframe = document.createElement('iframe')
   iframe.setAttribute('id', 'i18next-editor-iframe')
+  iframe.setAttribute('title', 'Locize editor')
   iframe.setAttribute('data-i18next-editor-element', 'true')
   iframe.style = `
     z-index: 100;

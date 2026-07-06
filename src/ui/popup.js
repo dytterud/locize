@@ -34,7 +34,10 @@ export function initDragElement () {
 
     if (header) {
       header.parentPopup = popup
-      header.onmousedown = dragMouseDown
+      // pointer events unify mouse + touch/pen (tablet support);
+      // touch-action none stops the browser from scrolling instead
+      header.style.touchAction = 'none'
+      header.onpointerdown = dragMouseDown
     }
   }
 
@@ -46,12 +49,12 @@ export function initDragElement () {
     elmnt = this.parentPopup
 
     e = e || window.event
-    // get the mouse cursor position at startup:
+    // get the pointer position at startup:
     pos3 = e.clientX
     pos4 = e.clientY
-    document.onmouseup = closeDragElement
-    // call a function whenever the cursor moves:
-    document.onmousemove = elementDrag
+    document.onpointerup = closeDragElement
+    // call a function whenever the pointer moves:
+    document.onpointermove = elementDrag
   }
 
   function elementDrag (e) {
@@ -84,9 +87,9 @@ export function initDragElement () {
       })
     )
 
-    /* stop moving when mouse button is released: */
-    document.onmouseup = null
-    document.onmousemove = null
+    /* stop moving when the pointer is released: */
+    document.onpointerup = null
+    document.onpointermove = null
   }
 
   function getHeader (element) {
@@ -113,20 +116,23 @@ export function initResizeElement () {
 
     const right = document.createElement('div')
     right.className = 'resizer-right'
+    right.style.touchAction = 'none'
     p.appendChild(right)
-    right.addEventListener('mousedown', initDrag, false)
+    right.addEventListener('pointerdown', initDrag, false)
     right.parentPopup = p
 
     const bottom = document.createElement('div')
     bottom.className = 'resizer-bottom'
+    bottom.style.touchAction = 'none'
     p.appendChild(bottom)
-    bottom.addEventListener('mousedown', initDrag, false)
+    bottom.addEventListener('pointerdown', initDrag, false)
     bottom.parentPopup = p
 
     const both = document.createElement('div')
     both.className = 'resizer-both'
+    both.style.touchAction = 'none'
     p.appendChild(both)
-    both.addEventListener('mousedown', initDrag, false)
+    both.addEventListener('pointerdown', initDrag, false)
     both.parentPopup = p
   }
 
@@ -147,8 +153,8 @@ export function initResizeElement () {
       document.defaultView.getComputedStyle(element).height,
       10
     )
-    document.documentElement.addEventListener('mousemove', doDrag, false)
-    document.documentElement.addEventListener('mouseup', stopDrag, false)
+    document.documentElement.addEventListener('pointermove', doDrag, false)
+    document.documentElement.addEventListener('pointerup', stopDrag, false)
   }
 
   function doDrag (e) {
@@ -169,7 +175,7 @@ export function initResizeElement () {
       })
     )
 
-    document.documentElement.removeEventListener('mousemove', doDrag, false)
-    document.documentElement.removeEventListener('mouseup', stopDrag, false)
+    document.documentElement.removeEventListener('pointermove', doDrag, false)
+    document.documentElement.removeEventListener('pointerup', stopDrag, false)
   }
 }

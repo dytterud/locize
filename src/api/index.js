@@ -7,6 +7,7 @@ import './handleRequestResourceBundle.js'
 import './handleSelectedKeys.js'
 import './handleIsLocizeEnabled.js'
 import './handleSendMatchedUninstrumented.js'
+import './handleTurnOnOff.js'
 
 export {
   api,

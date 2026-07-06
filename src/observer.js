@@ -51,7 +51,25 @@ export function createObserver (ele, handle) {
 
   // hold elements with mutations
   let targetEles = []
+  // ponytail: crude global backoff - on high-churn pages (animations,
+  // tickers) that keep triggering across DIFFERENT elements (the
+  // per-element suppression above doesn't catch that), hold parsing to
+  // ~1/second once more than 10 parses happened within 10 seconds
+  let windowStart = 0
+  let runsInWindow = 0
+  let lastRun = 0
   const debouncedHandler = debounce(function h () {
+    const now = Date.now()
+    if (now - windowStart > 10000) {
+      windowStart = now
+      runsInWindow = 0
+    }
+    if (runsInWindow > 10 && now - lastRun < 1000) {
+      debouncedHandler() // re-defer; targetEles keeps accumulating
+      return
+    }
+    runsInWindow = runsInWindow + 1
+    lastRun = now
     handle(targetEles)
     targetEles = []
   }, 100)

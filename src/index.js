@@ -1,6 +1,6 @@
 import { locizePlugin, locizeEditorPlugin } from './locizePlugin.js'
 import { startStandalone } from './startStandalone.js'
-import { addLocizeSavedHandler, setEditorLng } from './api/index.js'
+import { api, addLocizeSavedHandler, setEditorLng } from './api/index.js'
 import { getImplementation as getVueI18nImplementation } from './implementations/vueI18nImplementation.js'
 import {
   wrap,
@@ -8,6 +8,14 @@ import {
   containsHiddenMeta,
   PostProcessor
 } from 'i18next-subliminal'
+
+// programmatic navigate-vs-edit toggle (same as the editor's pause/play)
+export function turnOn () {
+  api.turnOn()
+}
+export function turnOff () {
+  api.turnOff()
+}
 
 export {
   wrap,
@@ -32,5 +40,7 @@ export default {
   locizeEditorPlugin,
   setEditorLng,
   startStandalone,
-  getVueI18nImplementation
+  getVueI18nImplementation,
+  turnOn,
+  turnOff
 }
