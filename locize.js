@@ -199,14 +199,21 @@
     warning: '#e67a00',
     gray: '#ccc'
   };
-  var getIframeUrl = function getIframeUrl() {
+  var resolveEnv = function resolveEnv() {
     var _prc$env;
     var p;
     if (typeof process !== 'undefined') p = process;
     if (!p && typeof window !== 'undefined') p = window.process;
     var prc = p || {};
-    var env = ((_prc$env = prc.env) === null || _prc$env === void 0 ? void 0 : _prc$env.locizeIncontext) || 'production';
+    return ((_prc$env = prc.env) === null || _prc$env === void 0 ? void 0 : _prc$env.locizeIncontext) || 'production';
+  };
+  var getIframeUrl = function getIframeUrl() {
+    var env = resolveEnv();
     return env === 'development' ? 'http://localhost:3003/' : env === 'staging' ? 'https://incontext-dev.locize.app' : 'https://incontext.locize.app';
+  };
+  var getEditorOrigins = function getEditorOrigins() {
+    var env = resolveEnv();
+    return env === 'development' ? ['http://localhost:3003', 'http://localhost:3000'] : env === 'staging' ? ['https://incontext-dev.locize.app', 'https://dev.locize.app'] : ['https://incontext.locize.app', 'https://www.locize.app', 'https://locize.app'];
   };
 
   var sheet = function () {
@@ -584,20 +591,22 @@
       sendMessage('added', msg);
     }
   };
-  var getExpectedIframeOrigin = function getExpectedIframeOrigin() {
+  var getExpectedEditorOrigins = function getExpectedEditorOrigins() {
     try {
-      return new URL(getIframeUrl()).origin;
+      return getEditorOrigins().map(function (url) {
+        return new URL(url).origin;
+      });
     } catch (err) {
-      return null;
+      return [];
     }
   };
   if (typeof window !== 'undefined') {
     window.addEventListener('message', function (e) {
-      var expectedOrigin = getExpectedIframeOrigin();
-      if (!expectedOrigin || e.origin !== expectedOrigin) {
+      var expectedOrigins = getExpectedEditorOrigins();
+      if (!expectedOrigins.length || expectedOrigins.indexOf(e.origin) < 0) {
         var _e$data;
         if (((_e$data = e.data) === null || _e$data === void 0 ? void 0 : _e$data.sender) === 'i18next-editor-frame') {
-          debugLog('dropped editor message from unexpected origin', e.origin, 'expected', expectedOrigin);
+          debugLog('dropped editor message from unexpected origin', e.origin, 'expected one of', expectedOrigins);
         }
         return;
       }
