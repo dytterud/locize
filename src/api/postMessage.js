@@ -1,4 +1,4 @@
-import { getIframeUrl } from '../vars.js'
+import { getIframeUrl, getEditorOrigins } from '../vars.js'
 import { store } from '../store.js'
 import { uninstrumentedStore } from '../uninstrumentedStore.js'
 import { debounce, debugLog } from '../utils.js'
@@ -167,25 +167,26 @@ export const api = {
   }
 }
 
-// Compute the expected origin once at module load. The locize InContext
-// editor iframe is the only legitimate source of messages handled here.
-// Without this check, any page that can embed the host (or that the host
-// embeds) can invoke editKey/commitKeys/etc. against it — browser-enforced
-// e.origin is the right signal, not the attacker-controlled e.data.sender.
-const getExpectedIframeOrigin = () => {
+// Only legitimate locize editors may message this page: the popup editor
+// iframe (mode A) or the main locize app embedding this page in its
+// InContext view (mode B). Without this check, any page that can embed the
+// host (or that the host embeds) can invoke editKey/commitKeys/etc. against
+// it — browser-enforced e.origin is the right signal, not the
+// attacker-controlled e.data.sender. Fixed allowlist, see GHSA-w937-fg2h-xhq2.
+const getExpectedEditorOrigins = () => {
   try {
-    return new URL(getIframeUrl()).origin
+    return getEditorOrigins().map(url => new URL(url).origin)
   } catch (err) {
-    return null
+    return []
   }
 }
 
 if (typeof window !== 'undefined') {
   window.addEventListener('message', e => {
-    const expectedOrigin = getExpectedIframeOrigin()
-    if (!expectedOrigin || e.origin !== expectedOrigin) {
+    const expectedOrigins = getExpectedEditorOrigins()
+    if (!expectedOrigins.length || expectedOrigins.indexOf(e.origin) < 0) {
       if (e.data?.sender === 'i18next-editor-frame') {
-        debugLog('dropped editor message from unexpected origin', e.origin, 'expected', expectedOrigin)
+        debugLog('dropped editor message from unexpected origin', e.origin, 'expected one of', expectedOrigins)
       }
       return
     }
