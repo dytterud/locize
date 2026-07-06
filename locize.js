@@ -3803,7 +3803,7 @@
           })
         };
         if (!i18n.options.backend && !i18n.options.editor) return opts;
-        var pickFrom = i18n.options.editor || i18n.options.backend;
+        var pickFrom = _objectSpread$1(_objectSpread$1({}, i18n.options.backend), i18n.options.editor);
         return _objectSpread$1(_objectSpread$1({}, opts), {}, {
           projectId: pickFrom.projectId,
           version: pickFrom.version
