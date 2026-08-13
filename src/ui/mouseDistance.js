@@ -8,6 +8,11 @@ import {
   resetHighlight
 } from './highlightNode.js'
 
+// our own overlays: they sit on top of the very node they belong to, so they
+// must never count as something covering it
+const ownOverlaySelector =
+  '.i18next-editor-highlight, .i18next-editor-button-container, .i18next-editor-button'
+
 // Check if a node is visually covered by another element (e.g. modal backdrop)
 function isOccluded (node) {
   const rect = node.getBoundingClientRect()
@@ -19,8 +24,12 @@ function isOccluded (node) {
   const topEl = document.elementFromPoint(x, y)
   if (!topEl) return true
 
-  // Ignore our own editor overlay elements (highlight boxes, ribbon boxes, etc.)
-  if (topEl.dataset && topEl.dataset.i18nextEditorElement === 'true') return false
+  // `data-i18next-editor-element` marks two very different things: our own
+  // hover overlays (above), and the editor chrome - popup, its iframe, its drag
+  // overlay - which really does cover the page. Treating both as "not
+  // occluding" is why keys behind the editor popup stayed highlightable.
+  if (topEl.closest && topEl.closest(ownOverlaySelector)) return false
+  if (topEl.dataset && topEl.dataset.i18nextEditorElement === 'true') return true
 
   // The element at point should be the node itself or a descendant/ancestor
   return !node.contains(topEl) && !topEl.contains(node)
