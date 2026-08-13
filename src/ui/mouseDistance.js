@@ -35,10 +35,24 @@ function isOccluded (node) {
   return !node.contains(topEl) && !topEl.contains(node)
 }
 
+// A highlight box is positioned in page coordinates when it is created, so an
+// item that is off-screen with a box still owns a visible overlay somewhere in
+// the document. The viewport check below therefore skips the *highlighting*
+// work for such items, but never the reset. A selected key's box is deliberately
+// left alone (resetHighlight's default ignoreSelected guard): the selection
+// outlives scrolling, only hover highlights are cleared here.
+function hasOverlay (item) {
+  return !!(item.highlightBox || item.ribbonBox)
+}
+
 const debouncedUpdateDistance = debounce(function (e, observer) {
   Object.values(store.data).forEach(item => {
-    // if not visible do not calculate distance of mouse
-    if (!isInViewport(item.node)) return
+    // if not visible do not calculate distance of mouse - but do clear a
+    // highlight it may still be holding, it cannot be under the mouse
+    if (!isInViewport(item.node)) {
+      if (hasOverlay(item)) resetHighlight(item, item.node, item.keys)
+      return
+    }
     // if covered by modal/overlay do not highlight
     if (isOccluded(item.node)) { resetHighlight(item, item.node, item.keys); return }
 
@@ -55,8 +69,12 @@ const debouncedUpdateDistance = debounce(function (e, observer) {
   })
 
   Object.values(uninstrumentedStore.data).forEach(item => {
-    // if not visible do not calculate distance of mouse
-    if (!isInViewport(item.node)) return
+    // if not visible do not calculate distance of mouse - but do clear a
+    // highlight it may still be holding, it cannot be under the mouse
+    if (!isInViewport(item.node)) {
+      if (hasOverlay(item)) resetHighlight(item, item.node, item.keys)
+      return
+    }
     // if covered by modal/overlay do not highlight
     if (isOccluded(item.node)) { resetHighlight(item, item.node, item.keys); return }
 
@@ -70,14 +88,46 @@ const debouncedUpdateDistance = debounce(function (e, observer) {
 }, 50)
 
 let currentFC
+let scrollFC
+// last known mouse position, in viewport coordinates
+let lastClientX = 0
+let lastClientY = 0
+let hasLastMouse = false
 
 export function startMouseTracking (observer) {
   currentFC = function handle (e) {
+    lastClientX = e.clientX
+    lastClientY = e.clientY
+    hasLastMouse = true
+
     debouncedUpdateDistance(e, observer)
   }
   document.addEventListener('mousemove', currentFC)
+
+  // Highlights used to be recomputed on mousemove only, so scrolling with the
+  // mouse held still left them behind: a highlight box is positioned in page
+  // coordinates, it scrolls away together with the content and nothing ever
+  // cleared it. Run the same distance check on scroll, rebuilding the mouse
+  // page position from its last viewport position plus the current scroll
+  // offset - the mouse did not move, the content under it did.
+  scrollFC = function handleScroll () {
+    if (!hasLastMouse) return
+
+    const scrollX = window.scrollX || 0
+    const scrollY = window.scrollY || 0
+
+    // mouseDistanceFromElement reads pageX/pageY only
+    debouncedUpdateDistance({
+      pageX: lastClientX + scrollX,
+      pageY: lastClientY + scrollY
+    }, observer)
+  }
+  // Capture phase: `scroll` does not bubble, and the page may well scroll in a
+  // container instead of the document itself.
+  window.addEventListener('scroll', scrollFC, true)
 }
 
 export function stopMouseTracking () {
   document.removeEventListener('mousemove', currentFC)
+  if (scrollFC) window.removeEventListener('scroll', scrollFC, true)
 }
