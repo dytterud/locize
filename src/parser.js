@@ -6,6 +6,7 @@ import {
 import { store } from './store.js'
 import { uninstrumentedStore } from './uninstrumentedStore.js'
 import { validAttributes, ignoreElements } from './vars.js'
+import { isShadowDOMEnabled } from './shadowRoots.js'
 import { getI18nMetaFromNode } from './utils'
 
 import './shims/uniqueID.js'
@@ -42,6 +43,11 @@ function walk (node, func) {
   ) {
     walk(children[i], func)
   }
+
+  // with the `shadowDOM` option on, descend into an open shadow root as well:
+  // `childNodes` stops at the shadow boundary, so text rendered inside a
+  // shadow root would stay invisible to the editor
+  if (isShadowDOMEnabled() && node.shadowRoot) walk(node.shadowRoot, func)
 }
 
 function extractHiddenMeta (id, type, meta, children) {

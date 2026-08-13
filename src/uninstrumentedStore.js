@@ -1,10 +1,11 @@
 import { resetHighlight } from './ui/highlightNode.js'
+import { isNodeStillInDocument } from './shadowRoots.js'
 
 const data = {}
 
 function clean () {
   Object.values(data).forEach(item => {
-    if (!document.body.contains(item.node)) {
+    if (!isNodeStillInDocument(item.node)) {
       // resetHighlight needs the item (it holds the overlay elements), not the id
       resetHighlight(item, item.node, item.keys, false)
       delete data[item.id]

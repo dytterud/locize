@@ -124,6 +124,32 @@ For full control, target the stable CSS class:
 .locize-incontext-ribbon { bottom: 80px; right: 10px; }
 ```
 
+## shadow DOM
+
+If your translated content lives inside an **open shadow root**, the editor does
+not see it by default: a shadow boundary stops DOM traversal *and* mutation
+records, so neither the parser nor the `MutationObserver` on `document.body`
+reaches into it.
+
+Turn it on with the `shadowDOM` option:
+
+```js
+i18next.use(locizeEditorPlugin({ shadowDOM: true }))
+// or startStandalone({ shadowDOM: true })
+// or <script id="locize" shadowdom="true" ...>
+```
+
+With the option on, the editor walks into open shadow roots, observes each of
+them individually (nested ones included), and hooks
+`Element.prototype.attachShadow` so shadow roots created *after* the editor
+started are picked up as well - the usual case, since the editor script usually
+runs before the content is rendered into its shadow root. Closed shadow roots
+(`{ mode: 'closed' }`) are only reachable if they are attached after the editor
+started.
+
+It is off by default because it widens what the editor touches, which is
+unnecessary for pages that do not use shadow DOM.
+
 ## troubleshooting
 
 If the editor popup stays blank or "could not connect" is shown:

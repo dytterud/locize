@@ -2,12 +2,30 @@ import { store } from '../store.js'
 import { uninstrumentedStore } from '../uninstrumentedStore.js'
 import { isInViewport, mouseDistanceFromElement } from './utils.js'
 import { debounce } from '../utils.js'
+import { isShadowDOMEnabled } from '../shadowRoots.js'
 import {
   highlight,
   highlightUninstrumented,
   repositionHighlight,
   resetHighlight
 } from './highlightNode.js'
+
+// `document.elementFromPoint` stops at a shadow host and returns the host
+// itself, so a node inside a shadow root always looked occluded by its own
+// host. With the `shadowDOM` option on, drill through (possibly nested)
+// shadow roots to reach the real element under the point.
+function deepElementFromPoint (x, y) {
+  let el = document.elementFromPoint(x, y)
+  if (!isShadowDOMEnabled()) return el
+
+  while (el && el.shadowRoot) {
+    const inner = el.shadowRoot.elementFromPoint(x, y)
+    if (!inner || inner === el) break
+    el = inner
+  }
+
+  return el
+}
 
 // our own overlays: they sit on top of the very node they belong to, so they
 // must never count as something covering it
@@ -24,7 +42,7 @@ const editorChromeSelector = '#i18next-editor-popup, .locize-incontext-ribbon'
 
 // Is this point covered by something other than the node itself?
 function coveredAt (node, x, y) {
-  const topEl = document.elementFromPoint(x, y)
+  const topEl = deepElementFromPoint(x, y)
   if (!topEl) return true
 
   // `data-i18next-editor-element` marks two very different things: our own
@@ -83,7 +101,7 @@ function hasOverlay (item) {
 function cursorOverEditorChrome (e) {
   if (!e || typeof e.clientX !== 'number') return false
 
-  const topEl = document.elementFromPoint(e.clientX, e.clientY)
+  const topEl = deepElementFromPoint(e.clientX, e.clientY)
   if (!topEl || !topEl.closest) return false
   if (topEl.closest(ownOverlaySelector)) return false
 

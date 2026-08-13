@@ -1,10 +1,11 @@
 import { resetHighlight } from './ui/highlightNode.js'
+import { isNodeStillInDocument } from './shadowRoots.js'
 
 const data = {}
 
 function clean () {
   Object.values(data).forEach(item => {
-    if (!document.body.contains(item.node)) {
+    if (!isNodeStillInDocument(item.node)) {
       // resetHighlight needs the item (it holds the overlay elements), not the id;
       // ignoreSelected false: the node is gone, a selection highlight must not outlive it
       resetHighlight(item, item.node, item.keys, false)
