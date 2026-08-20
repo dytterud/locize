@@ -5,7 +5,9 @@ const data = {}
 function clean () {
   Object.values(data).forEach(item => {
     if (!document.body.contains(item.node)) {
-      resetHighlight(item.id, item.node)
+      // see store.js: `resetHighlight` reads the overlay elements off the item,
+      // so passing `item.id` orphaned them in the DOM
+      resetHighlight(item, item.node, item.keys, false)
       delete data[item.id]
     }
   })
@@ -28,7 +30,14 @@ function save (id, type, node, txt) {
 }
 
 function remove (id, node) {
-  resetHighlight(id, node)
+  // same as in `clean`: the highlight is tracked on the item, not reachable
+  // from the id. `id` can also be undefined here (the caller in parser.js
+  // derives it from `node.parentElement`, which is null for a node without an
+  // element parent) - that used to throw while destructuring in resetHighlight
+  // and aborted the whole parse run.
+  const item = get(id)
+  if (item) resetHighlight(item, item.node, item.keys, false)
+
   delete data[id]
 }
 

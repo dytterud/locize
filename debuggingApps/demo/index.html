@@ -99,6 +99,24 @@
     </div>
   </div>
 
+  <hr />
+  <div id="orphan-box-test">
+    <h4>Node removed while highlighted (orphaned highlight boxes):</h4>
+    <p>
+      Hover the line below and keep the mouse still - it removes itself 3
+      seconds later. The highlight box (and its ribbon) must disappear together
+      with the node. They used to stay behind permanently: the store dropped the
+      item without removing its boxes, so nothing referenced them any more and
+      no amount of mouse movement could ever clear them. Frameworks that
+      re-render (React, Angular, Vue) hit this on every re-render that replaces
+      a highlighted element.
+    </p>
+    <p id="removeOnHover" data-i18n="title">Hover me and wait 3 seconds</p>
+    <button id="restoreRemoveOnHover" style="padding: 8px 16px; cursor: pointer;">
+      put the line back
+    </button>
+  </div>
+
   <div id="non-loc-i18next">
     <h4>Some instrumented stuff</h4>
     <p data-i18n="translation:aNonI18nextKey;[title]common:anotherNonI18nextKey" title="some non i18next title">
@@ -176,6 +194,33 @@
       document.getElementById('tc-whitespace-text').firstChild.data = '\n    ' + i18next.t('title') + '\n  '
       console.log('textContent test: updated existing text nodes via .data (characterData mutation, no data-i18n)')
     }, 2000)
+
+    // Orphaned highlight boxes: remove a node WHILE it is highlighted, without
+    // moving the mouse (a mouse move would reset the highlight first and hide
+    // the problem). Mirrors what a framework re-render does to a hovered node.
+    ;(function () {
+      var container = document.getElementById('orphan-box-test')
+      var template = document.getElementById('removeOnHover').cloneNode(true)
+
+      function arm (ele) {
+        ele.addEventListener('mouseenter', function () {
+          setTimeout(function () {
+            if (!ele.parentElement) return
+            ele.remove()
+            console.log('orphan box test: removed the highlighted node - its highlight box must be gone too')
+          }, 3000)
+        }, { once: true })
+      }
+
+      arm(document.getElementById('removeOnHover'))
+
+      document.getElementById('restoreRemoveOnHover').addEventListener('click', function () {
+        if (document.getElementById('removeOnHover')) return
+        var fresh = template.cloneNode(true)
+        container.insertBefore(fresh, document.getElementById('restoreRemoveOnHover'))
+        arm(fresh)
+      })
+    })()
   </script>
 
   <!-- <script

@@ -383,6 +383,11 @@ export function parseTree (node) {
   // walk
   walk(node, handleNode)
   store.clean()
+  // `uninstrumentedStore.clean` was exported but never called, so entries whose
+  // node had left the document were never evicted: they piled up in the store,
+  // kept being reported to the editor as uninstrumented text, and held on to
+  // their highlight boxes.
+  uninstrumentedStore.clean()
 
   // cleanup
   ignoreMergedEleUniqueIds = []
