@@ -5,12 +5,8 @@ const data = {}
 function clean () {
   Object.values(data).forEach(item => {
     if (!document.body.contains(item.node)) {
-      // `resetHighlight` takes the *item* - it reads the overlay elements off
-      // it (`item.highlightBox` / `item.ribbonBox`). Passing `item.id` left
-      // both of them in the DOM while the item itself was deleted below, so
-      // nothing referenced them any more and they could never be cleared.
-      // `ignoreSelected: false`: the node is gone from the document, so a
-      // selection highlight must not outlive it either.
+      // resetHighlight needs the item (it holds the overlay elements), not the id;
+      // ignoreSelected false: the node is gone, a selection highlight must not outlive it
       resetHighlight(item, item.node, item.keys, false)
       delete data[item.id]
     }

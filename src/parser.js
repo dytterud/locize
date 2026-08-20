@@ -30,8 +30,7 @@ function walk (node, func) {
   const uninstr = uninstrumentedStore.get(node.uniqueID)
 
   if (instr || uninstr) {
-    const id = node.parentElement?.uniqueID
-    uninstrumentedStore.remove(id, node.parentElement)
+    uninstrumentedStore.remove(node.parentElement?.uniqueID)
   }
 
   // parse children
@@ -150,7 +149,7 @@ function storeIfQualifiedKey (
   // if we can 100% identify that ns:key store - else uninstrumented
   if (meta.qualifiedKey) {
     store.save(id, null, type, meta, node, children)
-    uninstrumentedStore.removeKey(id, type, node)
+    uninstrumentedStore.removeKey(id, type)
   } else {
     uninstrumentedStore.save(id, type, node, txt)
   }
@@ -196,7 +195,7 @@ function handleNode (node) {
       if (hasHiddenStartMarker && hasHiddenMeta) {
         const meta = unwrap(trimmedTxt)
 
-        uninstrumentedStore.remove(node.uniqueID, node) // might be instrumented later and already in uninstrumentedStore - so remove it there first
+        uninstrumentedStore.remove(node.uniqueID) // might be instrumented later and already in uninstrumentedStore - so remove it there first
         store.save(
           node.uniqueID,
           meta.invisibleMeta,
@@ -234,7 +233,7 @@ function handleNode (node) {
         //     happens for an actual i18next-subliminal end marker.
         const meta = unwrap(trimmedTxt)
 
-        uninstrumentedStore.remove(node.uniqueID, node)
+        uninstrumentedStore.remove(node.uniqueID)
         store.save(
           node.uniqueID,
           meta.invisibleMeta,
@@ -255,7 +254,7 @@ function handleNode (node) {
           }, '')
         )
 
-        uninstrumentedStore.removeKey(node.uniqueID, 'html', node, txt) // might be instrumented later and already in uninstrumentedStore - so remove it there first
+        uninstrumentedStore.removeKey(node.uniqueID, 'html') // might be instrumented later and already in uninstrumentedStore - so remove it there first
         store.save(
           node.uniqueID,
           meta.invisibleMeta,
@@ -346,7 +345,7 @@ function handleNode (node) {
     if (containsHiddenMeta(txt)) {
       const meta = unwrap(txt)
 
-      uninstrumentedStore.removeKey(node.uniqueID, attr, node) // might be instrumented later and already in uninstrumentedStore - so remove it there first
+      uninstrumentedStore.removeKey(node.uniqueID, attr) // might be instrumented later and already in uninstrumentedStore - so remove it there first
       store.save(
         node.uniqueID,
         meta.invisibleMeta,
@@ -383,10 +382,6 @@ export function parseTree (node) {
   // walk
   walk(node, handleNode)
   store.clean()
-  // `uninstrumentedStore.clean` was exported but never called, so entries whose
-  // node had left the document were never evicted: they piled up in the store,
-  // kept being reported to the editor as uninstrumented text, and held on to
-  // their highlight boxes.
   uninstrumentedStore.clean()
 
   // cleanup

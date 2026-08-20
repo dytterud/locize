@@ -1,3 +1,9 @@
+### 4.3.1
+
+- fix: highlight boxes and ribbons left behind in the DOM forever when a highlighted node leaves the document ([#248](https://github.com/locize/locize/pull/248)). `store.clean()` and `uninstrumentedStore.clean()`/`remove()` passed the item **id** to `resetHighlight`, which reads the overlay elements off the **item** (`item.highlightBox` / `item.ribbonBox`) — so the store entry was deleted but its boxes stayed at their last coordinates with nothing referencing them any more, accumulating on every framework re-render (React, Angular, Vue) that replaced a highlighted element. All call sites now pass the item, and with `ignoreSelected: false`, so a selection highlight doesn't outlive its node either.
+- fix: `resetHighlight(undefined, …)` threw `Cannot destructure property 'id' of 'item' as it is undefined` and aborted the whole parse run when `uninstrumentedStore.remove` was called with an id derived from a `null` `node.parentElement`; `remove` now looks the item up and skips when there is none.
+- fix: `uninstrumentedStore.clean()` was exported but never called — uninstrumented entries whose node had left the document were never evicted, piled up in the store and kept being reported to the editor as uninstrumented text. `parseTree` now runs it alongside `store.clean()`.
+
 ### 4.3.0
 
 - feat: navigate-vs-edit mode, also exported as `turnOn()` / `turnOff()` from the package root (typed in `index.d.ts`/`index.d.mts`) so integrators can toggle it from their own UI. The editor can pause the InContext script via the (re-introduced, now actually implemented) `turnOff` / `turnOn` messages: while paused, hover highlighting and click interception stop and existing highlights are cleared, so the page behaves like a normal website and multi-step flows can be navigated between edits; content parsing keeps running so the on-page key list stays fresh. Maximizing the minimized popup no longer resumes highlighting while paused.

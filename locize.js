@@ -229,7 +229,7 @@
   function clean$1() {
     Object.values(data$1).forEach(function (item) {
       if (!document.body.contains(item.node)) {
-        resetHighlight(item.id, item.node);
+        resetHighlight(item, item.node, item.keys, false);
         delete data$1[item.id];
       }
     });
@@ -248,15 +248,16 @@
       textType: type
     }));
   }
-  function remove(id, node) {
-    resetHighlight(id, node);
+  function remove(id) {
+    var item = get$1(id);
+    if (item) resetHighlight(item, item.node, item.keys, false);
     delete data$1[id];
   }
-  function removeKey(id, key, node) {
+  function removeKey(id, key) {
     var item = get$1(id);
     if (!item) return;
     delete item.keys["".concat(key)];
-    if (!Object.keys(item.keys).length) remove(id, node);
+    if (!Object.keys(item.keys).length) remove(id);
   }
   function get$1(id) {
     return data$1[id];
@@ -1175,7 +1176,7 @@
       }), item.value), uni === null || uni === void 0 ? void 0 : uni.node);
       if (uni && uni.keys) delete uni.keys["".concat(item.textType)];
       if (uni && uni.keys && !Object.keys(uni.keys).length) {
-        uninstrumentedStore.remove(item.eleUniqueID, uni.node);
+        uninstrumentedStore.remove(item.eleUniqueID);
       }
     });
     api.sendCurrentParsedContent();
@@ -3311,7 +3312,7 @@
   function clean() {
     Object.values(data).forEach(function (item) {
       if (!document.body.contains(item.node)) {
-        resetHighlight(item.id, item.node);
+        resetHighlight(item, item.node, item.keys, false);
         delete data[item.id];
       }
     });
@@ -3388,8 +3389,7 @@
     var uninstr = uninstrumentedStore.get(node.uniqueID);
     if (instr || uninstr) {
       var _node$parentElement;
-      var id = (_node$parentElement = node.parentElement) === null || _node$parentElement === void 0 ? void 0 : _node$parentElement.uniqueID;
-      uninstrumentedStore.remove(id, node.parentElement);
+      uninstrumentedStore.remove((_node$parentElement = node.parentElement) === null || _node$parentElement === void 0 ? void 0 : _node$parentElement.uniqueID);
     }
     var children = node.childNodes;
     for (var i = 0; i < children.length; i++) {
@@ -3453,7 +3453,7 @@
     var meta = extractNodeMeta(id, type, nodeI18nMeta, txt, children);
     if (meta.qualifiedKey) {
       store.save(id, null, type, meta, node, children);
-      uninstrumentedStore.removeKey(id, type, node);
+      uninstrumentedStore.removeKey(id, type);
     } else {
       uninstrumentedStore.save(id, type, node, txt);
     }
@@ -3481,11 +3481,11 @@
         if (hasHiddenMeta) usedSubliminalForText = true;
         if (hasHiddenStartMarker && hasHiddenMeta) {
           var meta = unwrap(trimmedTxt);
-          uninstrumentedStore.remove(node.uniqueID, node);
+          uninstrumentedStore.remove(node.uniqueID);
           store.save(node.uniqueID, meta.invisibleMeta, 'text', extractHiddenMeta(node.uniqueID, 'text', meta), node);
         } else if (hasHiddenMeta && !merge.length) {
           var _meta = unwrap(trimmedTxt);
-          uninstrumentedStore.remove(node.uniqueID, node);
+          uninstrumentedStore.remove(node.uniqueID);
           store.save(node.uniqueID, _meta.invisibleMeta, 'text', extractHiddenMeta(node.uniqueID, 'text', _meta), node);
         } else if (hasHiddenStartMarker) {
           merge.push({
@@ -3508,7 +3508,7 @@
           var _meta2 = unwrap(merge.reduce(function (mem, item) {
             return mem + item.text;
           }, ''));
-          uninstrumentedStore.removeKey(node.uniqueID, 'html', node, txt);
+          uninstrumentedStore.removeKey(node.uniqueID, 'html');
           store.save(node.uniqueID, _meta2.invisibleMeta, 'html', extractHiddenMeta(node.uniqueID, 'html', _meta2, merge), node, merge);
           merge = [];
         }
@@ -3548,7 +3548,7 @@
       var txt = node.getAttribute(attr);
       if (containsHiddenMeta(txt)) {
         var meta = unwrap(txt);
-        uninstrumentedStore.removeKey(node.uniqueID, attr, node);
+        uninstrumentedStore.removeKey(node.uniqueID, attr);
         store.save(node.uniqueID, meta.invisibleMeta, attr, extractHiddenMeta(node.uniqueID, "".concat(attr), meta), node);
       } else if (txt) {
         if (nodeI18nMeta && nodeI18nMeta[attr]) {
@@ -3563,6 +3563,7 @@
     currentSourceLng = undefined;
     walk(node, handleNode);
     store.clean();
+    uninstrumentedStore.clean();
     ignoreMergedEleUniqueIds = [];
     return store.data;
   }
