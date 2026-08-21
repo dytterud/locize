@@ -134,6 +134,20 @@
     </p>
   </div>
 
+  <hr />
+  <div id="scroll-stale-test">
+    <h4>Scroll with the mouse held still (stale hover highlights):</h4>
+    <p>
+      Hover the line below, then scroll the page with the wheel without moving
+      the mouse. The highlight must follow the distance rule as if the mouse had
+      moved: it disappears once the line is no longer under the cursor. It used
+      to stay behind, because highlights were recomputed on mousemove only - the
+      box is positioned in page coordinates, so it scrolled away with the content
+      and nothing ever cleared it.
+    </p>
+    <p data-i18n="title">Hover me, then scroll without moving the mouse</p>
+  </div>
+
   <div id="non-loc-i18next">
     <h4>Some instrumented stuff</h4>
     <p data-i18n="translation:aNonI18nextKey;[title]common:anotherNonI18nextKey" title="some non i18next title">
