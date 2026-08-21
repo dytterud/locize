@@ -117,6 +117,23 @@
     </button>
   </div>
 
+  <hr />
+  <div id="editor-chrome-test">
+    <h4>Hovering behind the editor popup:</h4>
+    <p>
+      Drag the editor popup over the line below, so the popup covers it. Moving
+      the cursor near the covered line must NOT highlight it - the popup is
+      editor chrome and counts as an occluder, exactly like the modal backdrop
+      above. It used to highlight anyway, because the popup carries the same
+      <code>data-i18next-editor-element</code> marker as the editor's own hover
+      overlays. Hovering a highlighted line's ribbon must still keep the
+      highlight, as before.
+    </p>
+    <p data-i18n="title" style="background-color: #6a9ac93b;">
+      Drag the editor popup over me, then hover me
+    </p>
+  </div>
+
   <div id="non-loc-i18next">
     <h4>Some instrumented stuff</h4>
     <p data-i18n="translation:aNonI18nextKey;[title]common:anotherNonI18nextKey" title="some non i18next title">
