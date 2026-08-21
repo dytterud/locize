@@ -121,16 +121,18 @@
   <div id="editor-chrome-test">
     <h4>Hovering behind the editor popup:</h4>
     <p>
-      Drag the editor popup over the line below, so the popup covers it. Moving
-      the cursor near the covered line must NOT highlight it - the popup is
-      editor chrome and counts as an occluder, exactly like the modal backdrop
-      above. It used to highlight anyway, because the popup carries the same
-      <code>data-i18next-editor-element</code> marker as the editor's own hover
-      overlays. Hovering a highlighted line's ribbon must still keep the
-      highlight, as before.
+      Drag the editor popup over the line below, so the popup covers part of it.
+      With the cursor <strong>over the popup</strong>, nothing on the page may
+      highlight - the popup is editor chrome and counts as an occluder, exactly
+      like the modal backdrop above. It used to highlight anyway, because the
+      popup carries the same <code>data-i18next-editor-element</code> marker as
+      the editor's own hover overlays. With the cursor on a
+      <strong>still-visible part</strong> of the line it must highlight, even
+      when the line's centre is the bit hidden under the popup. Hovering a
+      highlighted line's ribbon must still keep the highlight, as before.
     </p>
     <p data-i18n="title" style="background-color: #6a9ac93b;">
-      Drag the editor popup over me, then hover me
+      Drag the editor popup over my middle, then hover my left end
     </p>
   </div>
 
@@ -146,6 +148,24 @@
       and nothing ever cleared it.
     </p>
     <p data-i18n="title">Hover me, then scroll without moving the mouse</p>
+  </div>
+
+  <hr />
+  <div id="drift-test">
+    <h4>Content moving under a still mouse (drifting highlight boxes):</h4>
+    <p>
+      Hover a line inside the box below, then scroll <em>inside that box</em>
+      with the mouse held still. The page itself does not scroll, so the
+      overlay's page coordinates stay valid while the text moves out from under
+      them - the box used to sit on the spot the text had left. It must now
+      follow its line, without flickering or rebuilding the ribbon.
+    </p>
+    <div style="height: 90px; overflow-y: auto; border: 1px solid #ccc; padding: 8px;">
+      <p data-i18n="title">Hover me, then scroll inside this box</p>
+      <p data-i18n="title">Another line to scroll past</p>
+      <p data-i18n="title">And one more so there is something to scroll</p>
+      <p data-i18n="title">Last line in the scroll container</p>
+    </div>
   </div>
 
   <div id="non-loc-i18next">

@@ -3,7 +3,6 @@ import {
   containsHiddenMeta
 } from 'i18next-subliminal'
 
-/* eslint-disable import/prefer-default-export */
 import {
   getClickedElement,
   getElementText,
@@ -12,7 +11,6 @@ import {
 } from './utils.js'
 
 export function createClickHandler (cb, options = {}) {
-  // eslint-disable-next-line consistent-return
   const handler = e => {
     const el = getClickedElement(e)
     if (!el) return {}
@@ -20,7 +18,6 @@ export function createClickHandler (cb, options = {}) {
     e.preventDefault()
     e.stopPropagation()
 
-    // eslint-disable-next-line consistent-return
     function getFallbackNS () {
       if (options.isLocizify) return options.defaultNS
     }
@@ -47,7 +44,6 @@ export function createClickHandler (cb, options = {}) {
     const pL = parseFloat(style.getPropertyValue('padding-left'))
     const sizing = style.getPropertyValue('box-sizing')
 
-    // eslint-disable-next-line n/no-callback-literal
     cb({
       tagName: rectEl.tagName,
       text,

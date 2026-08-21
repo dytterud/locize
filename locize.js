@@ -855,20 +855,48 @@
     return refEle;
   }
 
-  function isOccluded(node) {
-    var rect = node.getBoundingClientRect();
-    if (!rect.width || !rect.height) return true;
-    var x = rect.left + rect.width / 2;
-    var y = rect.top + rect.height / 2;
+  var ownOverlaySelector = '.i18next-editor-highlight, .i18next-editor-button-container, .i18next-editor-button';
+  var editorChromeSelector = '#i18next-editor-popup, .locize-incontext-ribbon';
+  function coveredAt(node, x, y) {
     var topEl = document.elementFromPoint(x, y);
     if (!topEl) return true;
-    if (topEl.dataset && topEl.dataset.i18nextEditorElement === 'true') return false;
+    if (topEl.closest && topEl.closest(ownOverlaySelector)) return false;
+    if (topEl.dataset && topEl.dataset.i18nextEditorElement === 'true') return true;
     return !node.contains(topEl) && !topEl.contains(node);
   }
+  function isOccluded(node, e) {
+    var rect = node.getBoundingClientRect();
+    if (!rect.width || !rect.height) return true;
+    if (!coveredAt(node, rect.left + rect.width / 2, rect.top + rect.height / 2)) return false;
+    if (e && typeof e.clientX === 'number' && e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+      return coveredAt(node, e.clientX, e.clientY);
+    }
+    return true;
+  }
+  function hasOverlay(item) {
+    return !!(item.highlightBox || item.ribbonBox);
+  }
+  function cursorOverEditorChrome(e) {
+    if (!e || typeof e.clientX !== 'number') return false;
+    var topEl = document.elementFromPoint(e.clientX, e.clientY);
+    if (!topEl || !topEl.closest) return false;
+    if (topEl.closest(ownOverlaySelector)) return false;
+    return !!topEl.closest(editorChromeSelector);
+  }
   var debouncedUpdateDistance = debounce(function (e, observer) {
+    if (cursorOverEditorChrome(e)) {
+      Object.values(store.data).concat(Object.values(uninstrumentedStore.data)).forEach(function (item) {
+        if (hasOverlay(item)) resetHighlight(item, item.node, item.keys);
+      });
+      return;
+    }
     Object.values(store.data).forEach(function (item) {
-      if (!isInViewport(item.node)) return;
-      if (isOccluded(item.node)) {
+      if (!isInViewport(item.node)) {
+        if (hasOverlay(item)) resetHighlight(item, item.node, item.keys);
+        return;
+      }
+      repositionHighlight(item, item.node);
+      if (isOccluded(item.node, e)) {
         resetHighlight(item, item.node, item.keys);
         return;
       }
@@ -881,8 +909,12 @@
       }
     });
     Object.values(uninstrumentedStore.data).forEach(function (item) {
-      if (!isInViewport(item.node)) return;
-      if (isOccluded(item.node)) {
+      if (!isInViewport(item.node)) {
+        if (hasOverlay(item)) resetHighlight(item, item.node, item.keys);
+        return;
+      }
+      repositionHighlight(item, item.node);
+      if (isOccluded(item.node, e)) {
         resetHighlight(item, item.node, item.keys);
         return;
       }
@@ -895,14 +927,41 @@
     });
   }, 50);
   var currentFC;
+  var scrollFC;
+  var overFC;
+  var lastClientX = 0;
+  var lastClientY = 0;
+  var hasLastMouse = false;
   function startMouseTracking(observer) {
+    stopMouseTracking();
     currentFC = function handle(e) {
+      lastClientX = e.clientX;
+      lastClientY = e.clientY;
+      hasLastMouse = true;
       debouncedUpdateDistance(e, observer);
     };
     document.addEventListener('mousemove', currentFC);
+    scrollFC = function handleScroll() {
+      if (!hasLastMouse) return;
+      var scrollX = window.scrollX || 0;
+      var scrollY = window.scrollY || 0;
+      debouncedUpdateDistance({
+        pageX: lastClientX + scrollX,
+        pageY: lastClientY + scrollY,
+        clientX: lastClientX,
+        clientY: lastClientY
+      }, observer);
+    };
+    window.addEventListener('scroll', scrollFC, true);
+    overFC = function handleOver(e) {
+      if (cursorOverEditorChrome(e)) debouncedUpdateDistance(e, observer);
+    };
+    document.addEventListener('mouseover', overFC, true);
   }
   function stopMouseTracking() {
     document.removeEventListener('mousemove', currentFC);
+    if (scrollFC) window.removeEventListener('scroll', scrollFC, true);
+    if (overFC) document.removeEventListener('mouseover', overFC, true);
   }
 
   var iconEdit = '<svg xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 24 24" fill="#FFFFFF"><g></g><g><g><g><path d="M3,21l3.75,0L17.81,9.94l-3.75-3.75L3,17.25L3,21z M5,18.08l9.06-9.06l0.92,0.92L5.92,19L5,19L5,18.08z"/></g><g><path d="M18.37,3.29c-0.39-0.39-1.02-0.39-1.41,0l-1.83,1.83l3.75,3.75l1.83-1.83c0.39-0.39,0.39-1.02,0-1.41L18.37,3.29z"/></g></g></g></svg>';
@@ -1364,12 +1423,12 @@
     return oppositeSideMap[side] + placement.slice(side.length);
   }
   function expandPaddingObject(padding) {
+    var _padding$top, _padding$right, _padding$bottom, _padding$left;
     return {
-      top: 0,
-      right: 0,
-      bottom: 0,
-      left: 0,
-      ...padding
+      top: (_padding$top = padding.top) != null ? _padding$top : 0,
+      right: (_padding$right = padding.right) != null ? _padding$right : 0,
+      bottom: (_padding$bottom = padding.bottom) != null ? _padding$bottom : 0,
+      left: (_padding$left = padding.left) != null ? _padding$left : 0
     };
   }
   function getPaddingObject(padding) {
@@ -1444,13 +1503,9 @@
           y: reference.y
         };
     }
-    switch (getAlignment(placement)) {
-      case 'start':
-        coords[alignmentAxis] -= commonAlign * (rtl && isVertical ? -1 : 1);
-        break;
-      case 'end':
-        coords[alignmentAxis] += commonAlign * (rtl && isVertical ? -1 : 1);
-        break;
+    const alignment = getAlignment(placement);
+    if (alignment) {
+      coords[alignmentAxis] += commonAlign * (alignment === 'end' ? 1 : -1) * (rtl && isVertical ? -1 : 1);
     }
     return coords;
   }
@@ -1499,10 +1554,7 @@
       height: rects.floating.height
     } : rects.reference;
     const offsetParent = await (platform.getOffsetParent == null ? void 0 : platform.getOffsetParent(elements.floating));
-    const offsetScale = (await (platform.isElement == null ? void 0 : platform.isElement(offsetParent))) ? (await (platform.getScale == null ? void 0 : platform.getScale(offsetParent))) || {
-      x: 1,
-      y: 1
-    } : {
+    const offsetScale = (await (platform.isElement == null ? void 0 : platform.isElement(offsetParent))) && (await (platform.getScale == null ? void 0 : platform.getScale(offsetParent))) || {
       x: 1,
       y: 1
     };
@@ -1675,17 +1727,16 @@
 
       // Make sure the arrow doesn't overflow the floating element if the center
       // point is outside the floating element's bounds.
-      const min$1 = minPadding;
       const max = clientSize - arrowDimensions[length] - maxPadding;
       const center = clientSize / 2 - arrowDimensions[length] / 2 + centerToReference;
-      const offset = clamp(min$1, center, max);
+      const offset = clamp(minPadding, center, max);
 
       // If the reference is small enough that the arrow's padding causes it to
       // to point to nothing for an aligned placement, adjust the offset of the
       // floating element itself. To ensure `shift()` continues to take action,
       // a single reset is performed when this is true.
-      const shouldAddOffset = !middlewareData.arrow && getAlignment(placement) != null && center !== offset && rects.reference[length] / 2 - (center < min$1 ? minPadding : maxPadding) - arrowDimensions[length] / 2 < 0;
-      const alignmentOffset = shouldAddOffset ? center < min$1 ? center - min$1 : center - max : 0;
+      const shouldAddOffset = !middlewareData.arrow && getAlignment(placement) != null && center !== offset && rects.reference[length] / 2 - (center < minPadding ? minPadding : maxPadding) - arrowDimensions[length] / 2 < 0;
+      const alignmentOffset = shouldAddOffset ? center < minPadding ? center - minPadding : center - max : 0;
       return {
         [axis]: coords[axis] + alignmentOffset,
         data: {
@@ -1739,13 +1790,11 @@
           ...detectOverflowOptions
         } = evaluate(options, state);
         const placements$1 = alignment !== undefined || allowedPlacements === placements ? getPlacementList(alignment || null, autoAlignment, allowedPlacements) : allowedPlacements;
-        const overflow = await platform.detectOverflow(state, detectOverflowOptions);
         const currentIndex = ((_middlewareData$autoP = middlewareData.autoPlacement) == null ? void 0 : _middlewareData$autoP.index) || 0;
         const currentPlacement = placements$1[currentIndex];
         if (currentPlacement == null) {
           return {};
         }
-        const alignmentSides = getAlignmentSides(currentPlacement, rects, await (platform.isRTL == null ? void 0 : platform.isRTL(elements.floating)));
 
         // Make `computeCoords` start from the right place.
         if (placement !== currentPlacement) {
@@ -1755,6 +1804,8 @@
             }
           };
         }
+        const overflow = await platform.detectOverflow(state, detectOverflowOptions);
+        const alignmentSides = getAlignmentSides(currentPlacement, rects, await (platform.isRTL == null ? void 0 : platform.isRTL(elements.floating)));
         const currentOverflows = [overflow[getSide(currentPlacement)], overflow[alignmentSides[0]], overflow[alignmentSides[1]]];
         const allOverflows = [...(((_middlewareData$autoP2 = middlewareData.autoPlacement) == null ? void 0 : _middlewareData$autoP2.overflows) || []), {
           placement: currentPlacement,
@@ -2061,12 +2112,19 @@
           y
         } = evaluate(options, state);
         const nativeClientRects = Array.from((await (platform.getClientRects == null ? void 0 : platform.getClientRects(elements.reference))) || []);
+
+        // No rects (e.g. a hidden or detached reference, or a collapsed range) —
+        // keep the existing reference rect rather than resetting to an invalid
+        // one with non-finite values.
+        if (!nativeClientRects.length) {
+          return {};
+        }
         const clientRects = getRectsByLine(nativeClientRects);
         const fallback = rectToClientRect(getBoundingRect(nativeClientRects));
         const paddingObject = getPaddingObject(padding);
         function getBoundingClientRect() {
           // There are two rects and they are disjoined.
-          if (clientRects.length === 2 && clientRects[0].left > clientRects[1].right && x != null && y != null) {
+          if (clientRects.length === 2 && (clientRects[0].left > clientRects[1].right || clientRects[1].left > clientRects[0].right) && x != null && y != null) {
             // Find the first rect in which the point is fully inside.
             return clientRects.find(rect => x > rect.left - paddingObject.left && x < rect.right + paddingObject.right && y > rect.top - paddingObject.top && y < rect.bottom + paddingObject.bottom) || fallback;
           }
@@ -2081,18 +2139,12 @@
               const bottom = lastRect.bottom;
               const left = isTop ? firstRect.left : lastRect.left;
               const right = isTop ? firstRect.right : lastRect.right;
-              const width = right - left;
-              const height = bottom - top;
-              return {
-                top,
-                bottom,
-                left,
-                right,
-                width,
-                height,
+              return rectToClientRect({
                 x: left,
-                y: top
-              };
+                y: top,
+                width: right - left,
+                height: bottom - top
+              });
             }
             const isLeftSide = getSide(placement) === 'left';
             const maxRight = max(...clientRects.map(rect => rect.right));
@@ -2100,20 +2152,12 @@
             const measureRects = clientRects.filter(rect => isLeftSide ? rect.left === minLeft : rect.right === maxRight);
             const top = measureRects[0].top;
             const bottom = measureRects[measureRects.length - 1].bottom;
-            const left = minLeft;
-            const right = maxRight;
-            const width = right - left;
-            const height = bottom - top;
-            return {
-              top,
-              bottom,
-              left,
-              right,
-              width,
-              height,
-              x: left,
-              y: top
-            };
+            return rectToClientRect({
+              x: minLeft,
+              y: top,
+              width: maxRight - minLeft,
+              height: bottom - top
+            });
           }
           return fallback;
         }
@@ -2263,23 +2307,16 @@
           y
         };
         const overflow = await platform.detectOverflow(state, detectOverflowOptions);
-        const crossAxis = getSideAxis(getSide(placement));
+        const crossAxis = getSideAxis(placement);
         const mainAxis = getOppositeAxis(crossAxis);
         let mainAxisCoord = coords[mainAxis];
         let crossAxisCoord = coords[crossAxis];
+        const clampCoord = (axis, coord) => clamp(coord + overflow[axis === 'y' ? 'top' : 'left'], coord, coord - overflow[axis === 'y' ? 'bottom' : 'right']);
         if (checkMainAxis) {
-          const minSide = mainAxis === 'y' ? 'top' : 'left';
-          const maxSide = mainAxis === 'y' ? 'bottom' : 'right';
-          const min = mainAxisCoord + overflow[minSide];
-          const max = mainAxisCoord - overflow[maxSide];
-          mainAxisCoord = clamp(min, mainAxisCoord, max);
+          mainAxisCoord = clampCoord(mainAxis, mainAxisCoord);
         }
         if (checkCrossAxis) {
-          const minSide = crossAxis === 'y' ? 'top' : 'left';
-          const maxSide = crossAxis === 'y' ? 'bottom' : 'right';
-          const min = crossAxisCoord + overflow[minSide];
-          const max = crossAxisCoord - overflow[maxSide];
-          crossAxisCoord = clamp(min, crossAxisCoord, max);
+          crossAxisCoord = clampCoord(crossAxis, crossAxisCoord);
         }
         const limitedCoords = limiter.fn({
           ...state,
@@ -2310,6 +2347,7 @@
     return {
       options,
       fn(state) {
+        var _rawOffset$mainAxis, _rawOffset$crossAxis;
         const {
           x,
           y,
@@ -2335,9 +2373,8 @@
           mainAxis: rawOffset,
           crossAxis: 0
         } : {
-          mainAxis: 0,
-          crossAxis: 0,
-          ...rawOffset
+          mainAxis: (_rawOffset$mainAxis = rawOffset.mainAxis) != null ? _rawOffset$mainAxis : 0,
+          crossAxis: (_rawOffset$crossAxis = rawOffset.crossAxis) != null ? _rawOffset$crossAxis : 0
         };
         if (checkMainAxis) {
           const len = mainAxis === 'y' ? 'height' : 'width';
@@ -2369,6 +2406,12 @@
     };
   };
 
+  // Method syntax keeps callback parameters bivariant, but expressing the
+  // explicit `| undefined` required by `exactOptionalPropertyTypes` needs
+  // property syntax, which is contravariant under `strictFunctionTypes`.
+  // Extracting the function from a method position restores that bivariance so
+  // consumers can still assign callbacks with narrower parameter types.
+
   /**
    * Provides data that allows you to change the size of the floating element —
    * for instance, prevent it from overflowing the clipping boundary or match the
@@ -2383,7 +2426,6 @@
       name: 'size',
       options,
       async fn(state) {
-        var _state$middlewareData, _state$middlewareData2;
         const {
           placement,
           rects,
@@ -2415,24 +2457,21 @@
         const maximumClippingWidth = width - overflow.left - overflow.right;
         const overflowAvailableHeight = min(height - overflow[heightSide], maximumClippingHeight);
         const overflowAvailableWidth = min(width - overflow[widthSide], maximumClippingWidth);
-        const noShift = !state.middlewareData.shift;
+        const shiftData = state.middlewareData.shift;
+        const noShift = !shiftData;
         let availableHeight = overflowAvailableHeight;
         let availableWidth = overflowAvailableWidth;
-        if ((_state$middlewareData = state.middlewareData.shift) != null && _state$middlewareData.enabled.x) {
+        if (shiftData != null && shiftData.enabled.x) {
           availableWidth = maximumClippingWidth;
         }
-        if ((_state$middlewareData2 = state.middlewareData.shift) != null && _state$middlewareData2.enabled.y) {
+        if (shiftData != null && shiftData.enabled.y) {
           availableHeight = maximumClippingHeight;
         }
         if (noShift && !alignment) {
-          const xMin = max(overflow.left, 0);
-          const xMax = max(overflow.right, 0);
-          const yMin = max(overflow.top, 0);
-          const yMax = max(overflow.bottom, 0);
           if (isYAxis) {
-            availableWidth = width - 2 * (xMin !== 0 || xMax !== 0 ? xMin + xMax : max(overflow.left, overflow.right));
+            availableWidth = width - 2 * max(overflow.left, overflow.right);
           } else {
-            availableHeight = height - 2 * (yMin !== 0 || yMax !== 0 ? yMin + yMax : max(overflow.top, overflow.bottom));
+            availableHeight = height - 2 * max(overflow.top, overflow.bottom);
           }
         }
         await apply({
@@ -2588,7 +2627,7 @@
   function getNearestOverflowAncestor(node) {
     const parentNode = getParentNode(node);
     if (isLastTraversableNode(parentNode)) {
-      return node.ownerDocument ? node.ownerDocument.body : node.body;
+      return (node.ownerDocument || node).body;
     }
     if (isHTMLElement(parentNode) && isOverflowElement(parentNode)) {
       return parentNode;
@@ -2685,10 +2724,7 @@
     if (isFixed === void 0) {
       isFixed = false;
     }
-    if (!floatingOffsetParent || isFixed && floatingOffsetParent !== getWindow(element)) {
-      return false;
-    }
-    return isFixed;
+    return !!floatingOffsetParent && isFixed && floatingOffsetParent === getWindow(element);
   }
 
   function getBoundingClientRect(element, includeScale, isFixedStrategy, offsetParent) {
@@ -2715,12 +2751,12 @@
     let y = (clientRect.top + visualOffsets.y) / scale.y;
     let width = clientRect.width / scale.x;
     let height = clientRect.height / scale.y;
-    if (domElement) {
+    if (domElement && offsetParent) {
       const win = getWindow(domElement);
-      const offsetWin = offsetParent && isElement(offsetParent) ? getWindow(offsetParent) : offsetParent;
+      const offsetWin = isElement(offsetParent) ? getWindow(offsetParent) : offsetParent;
       let currentWin = win;
       let currentIFrame = getFrameElement(currentWin);
-      while (currentIFrame && offsetParent && offsetWin !== currentWin) {
+      while (currentIFrame && offsetWin !== currentWin) {
         const iframeScale = getScale(currentIFrame);
         const iframeRect = currentIFrame.getBoundingClientRect();
         const css = getComputedStyle$1(currentIFrame);
@@ -2784,7 +2820,7 @@
     let scale = createCoords(1);
     const offsets = createCoords(0);
     const isOffsetParentAnElement = isHTMLElement(offsetParent);
-    if (isOffsetParentAnElement || !isOffsetParentAnElement && !isFixed) {
+    if (isOffsetParentAnElement || !isFixed) {
       if (getNodeName(offsetParent) !== 'body' || isOverflowElement(documentElement)) {
         scroll = getNodeScroll(offsetParent);
       }
@@ -2805,18 +2841,17 @@
   }
 
   function getClientRects(element) {
-    return Array.from(element.getClientRects());
+    return element.getClientRects ? Array.from(element.getClientRects()) : [];
   }
 
   // Gets the entire size of the scrollable document area, even extending outside
   // of the `<html>` and `<body>` rect bounds if horizontally scrollable.
-  function getDocumentRect(element) {
-    const html = getDocumentElement(element);
-    const scroll = getNodeScroll(element);
-    const body = element.ownerDocument.body;
+  function getDocumentRect(html) {
+    const scroll = getNodeScroll(html);
+    const body = html.ownerDocument.body;
     const width = max(html.scrollWidth, html.clientWidth, body.scrollWidth, body.clientWidth);
     const height = max(html.scrollHeight, html.clientHeight, body.scrollHeight, body.clientHeight);
-    let x = -scroll.scrollLeft + getWindowScrollBarX(element);
+    let x = -scroll.scrollLeft + getWindowScrollBarX(html);
     const y = -scroll.scrollTop;
     if (getComputedStyle$1(body).direction === 'rtl') {
       x += max(html.clientWidth, body.clientWidth) - width;
@@ -2833,7 +2868,11 @@
   // calculation is affected by unusual styles.
   // Most scrollbars leave 15-18px of space.
   const SCROLLBAR_MAX = 25;
-  function getViewportRect(element, strategy) {
+  function getViewportRect(element, strategy, rootBoundary) {
+    if (rootBoundary === void 0) {
+      rootBoundary = 'viewport';
+    }
+    const isLayoutViewport = rootBoundary === 'layoutViewport';
     const win = getWindow(element);
     const html = getDocumentElement(element);
     const visualViewport = win.visualViewport;
@@ -2842,31 +2881,42 @@
     let x = 0;
     let y = 0;
     if (visualViewport) {
-      width = visualViewport.width;
-      height = visualViewport.height;
-      const visualViewportBased = isWebKit();
-      if (!visualViewportBased || visualViewportBased && strategy === 'fixed') {
-        x = visualViewport.offsetLeft;
-        y = visualViewport.offsetTop;
+      // Client coordinates are relative to the layout viewport, except in
+      // WebKit with an `absolute` strategy, where they are relative to the
+      // visual viewport.
+      const layoutRelativeClientCoords = !isWebKit() || strategy === 'fixed';
+      if (isLayoutViewport) {
+        if (!layoutRelativeClientCoords) {
+          x = -visualViewport.offsetLeft;
+          y = -visualViewport.offsetTop;
+        }
+      } else {
+        width = visualViewport.width;
+        height = visualViewport.height;
+        if (layoutRelativeClientCoords) {
+          x = visualViewport.offsetLeft;
+          y = visualViewport.offsetTop;
+        }
       }
     }
     const windowScrollbarX = getWindowScrollBarX(html);
-    // <html> `overflow: hidden` + `scrollbar-gutter: stable` reduces the
-    // visual width of the <html> but this is not considered in the size
-    // of `html.clientWidth`.
+    // `scrollbar-gutter: stable` on the <html> reserves gutter space that shrinks
+    // the visual width but isn't reflected in `html.clientWidth`, so subtract it.
+    // Only the inline-end (right) gutter can hold the scrollbar; `both-edges` also
+    // reserves an empty inline-start gutter that clips nothing, so exclude just
+    // the one scrollbar-side gutter — halve the measured (two-gutter) total. A
+    // left-side scrollbar (`windowScrollbarX > 0`) is already handled by
+    // `getHTMLOffset`/`visualViewport.width`; skip it here.
     if (windowScrollbarX <= 0) {
       const doc = html.ownerDocument;
       const body = doc.body;
       const bodyStyles = getComputedStyle(body);
       const bodyMarginInline = doc.compatMode === 'CSS1Compat' ? parseFloat(bodyStyles.marginLeft) + parseFloat(bodyStyles.marginRight) || 0 : 0;
-      const clippingStableScrollbarWidth = Math.abs(html.clientWidth - body.clientWidth - bodyMarginInline);
-      if (clippingStableScrollbarWidth <= SCROLLBAR_MAX) {
-        width -= clippingStableScrollbarWidth;
+      const reservedWidth = Math.abs(html.clientWidth - body.clientWidth - bodyMarginInline);
+      const gutter = getComputedStyle(html).scrollbarGutter === 'stable both-edges' ? reservedWidth / 2 : reservedWidth;
+      if (gutter <= SCROLLBAR_MAX) {
+        width -= gutter;
       }
-    } else if (windowScrollbarX <= SCROLLBAR_MAX) {
-      // If the <body> scrollbar is on the left, the width needs to be extended
-      // by the scrollbar amount so there isn't extra space on the right.
-      width += windowScrollbarX;
     }
     return {
       width,
@@ -2881,7 +2931,7 @@
     const clientRect = getBoundingClientRect(element, true, strategy === 'fixed');
     const top = clientRect.top + element.clientTop;
     const left = clientRect.left + element.clientLeft;
-    const scale = isHTMLElement(element) ? getScale(element) : createCoords(1);
+    const scale = getScale(element);
     const width = element.clientWidth * scale.x;
     const height = element.clientHeight * scale.y;
     const x = left * scale.x;
@@ -2895,8 +2945,8 @@
   }
   function getClientRectFromClippingAncestor(element, clippingAncestor, strategy) {
     let rect;
-    if (clippingAncestor === 'viewport') {
-      rect = getViewportRect(element, strategy);
+    if (clippingAncestor === 'viewport' || clippingAncestor === 'layoutViewport') {
+      rect = getViewportRect(element, strategy, clippingAncestor);
     } else if (clippingAncestor === 'document') {
       rect = getDocumentRect(getDocumentElement(element));
     } else if (isElement(clippingAncestor)) {
@@ -2912,13 +2962,6 @@
     }
     return rectToClientRect(rect);
   }
-  function hasFixedPositionAncestor(element, stopNode) {
-    const parentNode = getParentNode(element);
-    if (parentNode === stopNode || !isElement(parentNode) || isLastTraversableNode(parentNode)) {
-      return false;
-    }
-    return getComputedStyle$1(parentNode).position === 'fixed' || hasFixedPositionAncestor(parentNode, stopNode);
-  }
 
   // A "clipping ancestor" is an `overflow` element with the characteristic of
   // clipping (or hiding) child elements. This returns all clipping ancestors
@@ -2929,7 +2972,7 @@
       return cachedResult;
     }
     let result = getOverflowAncestors(element, [], false).filter(el => isElement(el) && getNodeName(el) !== 'body');
-    let currentContainingBlockComputedStyle = null;
+    let lastKeptComputedStyle = null;
     const elementIsFixed = getComputedStyle$1(element).position === 'fixed';
     let currentNode = elementIsFixed ? getParentNode(element) : element;
 
@@ -2937,16 +2980,20 @@
     while (isElement(currentNode) && !isLastTraversableNode(currentNode)) {
       const computedStyle = getComputedStyle$1(currentNode);
       const currentNodeIsContaining = isContainingBlock(currentNode);
-      if (!currentNodeIsContaining && computedStyle.position === 'fixed') {
-        currentContainingBlockComputedStyle = null;
-      }
-      const shouldDropCurrentNode = elementIsFixed ? !currentNodeIsContaining && !currentContainingBlockComputedStyle : !currentNodeIsContaining && computedStyle.position === 'static' && !!currentContainingBlockComputedStyle && (currentContainingBlockComputedStyle.position === 'absolute' || currentContainingBlockComputedStyle.position === 'fixed') || isOverflowElement(currentNode) && !currentNodeIsContaining && hasFixedPositionAncestor(element, currentNode);
+      // Position of the containing block chain below the current node. A fixed
+      // element whose containing block hasn't been found yet is a fixed chain.
+      const lastPosition = lastKeptComputedStyle ? lastKeptComputedStyle.position : elementIsFixed ? 'fixed' : '';
+
+      // A non-containing ancestor does not clip the element when the chain
+      // below it escapes it: a fixed chain escapes all ancestors up to the
+      // next containing block, an absolute chain escapes static ancestors.
+      const shouldDropCurrentNode = !currentNodeIsContaining && (lastPosition === 'fixed' || lastPosition === 'absolute' && computedStyle.position === 'static');
       if (shouldDropCurrentNode) {
         // Drop non-containing blocks.
         result = result.filter(ancestor => ancestor !== currentNode);
       } else {
-        // Record last containing block for next iteration.
-        currentContainingBlockComputedStyle = computedStyle;
+        // The kept node carries the chain position for the next iteration.
+        lastKeptComputedStyle = computedStyle;
       }
       currentNode = getParentNode(currentNode);
     }
@@ -3006,13 +3053,7 @@
       scrollTop: 0
     };
     const offsets = createCoords(0);
-
-    // If the <body> scrollbar appears on the left (e.g. RTL systems). Use
-    // Firefox with layout.scrollbar.side = 3 in about:config to test this.
-    function setLeftRTLScrollbarOffset() {
-      offsets.x = getWindowScrollBarX(documentElement);
-    }
-    if (isOffsetParentAnElement || !isOffsetParentAnElement && !isFixed) {
+    if (isOffsetParentAnElement || !isFixed) {
       if (getNodeName(offsetParent) !== 'body' || isOverflowElement(documentElement)) {
         scroll = getNodeScroll(offsetParent);
       }
@@ -3020,12 +3061,13 @@
         const offsetRect = getBoundingClientRect(offsetParent, true, isFixed, offsetParent);
         offsets.x = offsetRect.x + offsetParent.clientLeft;
         offsets.y = offsetRect.y + offsetParent.clientTop;
-      } else if (documentElement) {
-        setLeftRTLScrollbarOffset();
       }
     }
-    if (isFixed && !isOffsetParentAnElement && documentElement) {
-      setLeftRTLScrollbarOffset();
+
+    // If the <body> scrollbar appears on the left (e.g. RTL systems). Use
+    // Firefox with layout.scrollbar.side = 3 in about:config to test this.
+    if (!isOffsetParentAnElement && documentElement) {
+      offsets.x = getWindowScrollBarX(documentElement);
     }
     const htmlOffset = documentElement && !isOffsetParentAnElement && !isFixed ? getHTMLOffset(documentElement, scroll) : createCoords(0);
     const x = rect.left + scroll.scrollLeft - offsets.x - htmlOffset.x;
@@ -3195,11 +3237,9 @@
     // multiple lifecycle resets re-use the same result. It only lives for a
     // single call. If other functions become expensive, we can add them as well.
     const cache = new Map();
-    const mergedOptions = {
-      platform,
-      ...options
-    };
+    const mergedOptions = options != null ? options : {};
     const platformWithCache = {
+      ...platform,
       ...mergedOptions.platform,
       _c: cache
     };
@@ -3210,6 +3250,49 @@
   };
 
   var selected = {};
+  function positionRibbon(rectEle, actions, arrowEle) {
+    return computePosition(rectEle, actions, {
+      placement: 'right',
+      middleware: [flip({
+        fallbackPlacements: ['left', 'bottom']
+      }), shift(), offset(function (_ref) {
+        var placement = _ref.placement,
+          rects = _ref.rects;
+        if (placement === 'bottom') return -rects.reference.height / 2 - rects.floating.height / 2;
+        return 35;
+      }), arrow({
+        element: arrowEle
+      })]
+    }).then(function (_ref2) {
+      var x = _ref2.x,
+        y = _ref2.y,
+        middlewareData = _ref2.middlewareData,
+        placement = _ref2.placement;
+      Object.assign(actions.style, {
+        left: "".concat(x, "px"),
+        top: "".concat(y, "px"),
+        display: 'inline-flex'
+      });
+      var side = placement.split('-')[0];
+      var staticSide = {
+        top: 'bottom',
+        right: 'left',
+        bottom: 'top',
+        left: 'right'
+      }[side];
+      if (middlewareData.arrow) {
+        var _middlewareData$arrow = middlewareData.arrow,
+          _x = _middlewareData$arrow.x,
+          _y = _middlewareData$arrow.y;
+        Object.assign(arrowEle.style, _defineProperty(_defineProperty({
+          left: _x != null ? "".concat(_x, "px") : '',
+          top: _y != null ? "".concat(_y, "px") : '',
+          right: '',
+          bottom: ''
+        }, staticSide, "".concat(side === 'bottom' ? -18 : -25, "px")), "transform", side === 'bottom' ? 'rotate(90deg)' : side === 'left' ? 'rotate(180deg)' : ''));
+      }
+    });
+  }
   function highlight(item, node, keys) {
     var rectEle = getOptimizedBoundingRectEle(node);
     if (!item.highlightBox) {
@@ -3222,48 +3305,9 @@
         actions = _RibbonBox.box,
         arrowEle = _RibbonBox.arrow;
       document.body.appendChild(actions);
-      computePosition(rectEle, actions, {
-        placement: 'right',
-        middleware: [flip({
-          fallbackPlacements: ['left', 'bottom']
-        }), shift(), offset(function (_ref) {
-          var placement = _ref.placement,
-            rects = _ref.rects;
-          if (placement === 'bottom') return -rects.reference.height / 2 - rects.floating.height / 2;
-          return 35;
-        }), arrow({
-          element: arrowEle
-        })]
-      }).then(function (_ref2) {
-        var x = _ref2.x,
-          y = _ref2.y,
-          middlewareData = _ref2.middlewareData,
-          placement = _ref2.placement;
-        Object.assign(actions.style, {
-          left: "".concat(x, "px"),
-          top: "".concat(y, "px"),
-          display: 'inline-flex'
-        });
-        var side = placement.split('-')[0];
-        var staticSide = {
-          top: 'bottom',
-          right: 'left',
-          bottom: 'top',
-          left: 'right'
-        }[side];
-        if (middlewareData.arrow) {
-          var _middlewareData$arrow = middlewareData.arrow,
-            _x = _middlewareData$arrow.x,
-            _y = _middlewareData$arrow.y;
-          Object.assign(arrowEle.style, _defineProperty(_defineProperty({
-            left: _x != null ? "".concat(_x, "px") : '',
-            top: _y != null ? "".concat(_y, "px") : '',
-            right: '',
-            bottom: ''
-          }, staticSide, "".concat(side === 'bottom' ? -18 : -25, "px")), "transform", side === 'bottom' ? 'rotate(90deg)' : side === 'left' ? 'rotate(180deg)' : ''));
-        }
-      });
+      positionRibbon(rectEle, actions, arrowEle);
       item.ribbonBox = actions;
+      item.ribbonArrow = arrowEle;
     }
   }
   function highlightUninstrumented(item, node, keys) {
@@ -3286,6 +3330,21 @@
     }
     selected[id] = true;
   }
+  function repositionHighlight(item, node) {
+    if (!item.highlightBox) return;
+    var rectEle = getOptimizedBoundingRectEle(node);
+    var rect = rectEle.getBoundingClientRect();
+    var top = "".concat(rect.top - 2 + window.scrollY, "px");
+    var left = "".concat(rect.left - 2 + window.scrollX, "px");
+    if (item.highlightBox.style.top === top && item.highlightBox.style.left === left) return;
+    Object.assign(item.highlightBox.style, {
+      top: top,
+      left: left,
+      height: "".concat(rect.height + 4, "px"),
+      width: "".concat(rect.width + 4, "px")
+    });
+    if (item.ribbonBox && item.ribbonArrow) positionRibbon(rectEle, item.ribbonBox, item.ribbonArrow);
+  }
   function recalcSelectedHighlight(item, node, keys) {
     if (!selected[item.id]) return;
     resetHighlight(item, node, keys, false);
@@ -3302,6 +3361,7 @@
     if (item.ribbonBox) {
       document.body.removeChild(item.ribbonBox);
       delete item.ribbonBox;
+      delete item.ribbonArrow;
     }
     delete selected[id];
   }

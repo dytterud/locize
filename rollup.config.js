@@ -1,9 +1,9 @@
-import babel from 'rollup-plugin-babel';
-import nodeResolve from 'rollup-plugin-node-resolve';
-import { terser } from 'rollup-plugin-terser';
-import commonjs from 'rollup-plugin-commonjs';
-import { readFileSync } from 'fs';
-const pkg = JSON.parse(readFileSync(new URL('package.json', import.meta.url)));
+import babel from 'rollup-plugin-babel'
+import nodeResolve from 'rollup-plugin-node-resolve'
+import terser from '@rollup/plugin-terser'
+import commonjs from 'rollup-plugin-commonjs'
+import { readFileSync } from 'fs'
+const pkg = JSON.parse(readFileSync(new URL('package.json', import.meta.url)))
 
 const getBabelOptions = ({ useESModules, plugins = [] }) => ({
   exclude: /node_modules/,
@@ -11,11 +11,11 @@ const getBabelOptions = ({ useESModules, plugins = [] }) => ({
   runtimeHelpers: true,
   plugins: [['@babel/transform-runtime', { useESModules }]].concat(plugins),
   comments: false,
-});
+})
 
-const input = './src/index.js';
+const input = './src/index.js'
 // check relative and absolute paths for windows and unix
-const external = id => !id.startsWith('.') && !id.startsWith('/') && !id.includes(':');
+const external = id => !id.startsWith('.') && !id.startsWith('/') && !id.includes(':')
 
 export default [
   {
@@ -35,7 +35,7 @@ export default [
         getBabelOptions({
           useESModules: false,
           plugins: [['add-module-exports']],
-        }),
+        })
       ),
     ],
   },
@@ -85,4 +85,4 @@ export default [
     },
     plugins: [commonjs(), babel(getBabelOptions({ useESModules: true })), nodeResolve(), terser()],
   },
-];
+]

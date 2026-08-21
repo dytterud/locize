@@ -7,7 +7,6 @@ export function getImplementation () {
 
     },
     getResourceBundle: (lng, ns, cb) => {
-      // eslint-disable-next-line n/no-callback-literal
       cb({})
     },
     getDefaultNS: () => {

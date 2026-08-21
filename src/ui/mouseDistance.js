@@ -5,6 +5,7 @@ import { debounce } from '../utils.js'
 import {
   highlight,
   highlightUninstrumented,
+  repositionHighlight,
   resetHighlight
 } from './highlightNode.js'
 
@@ -13,19 +14,21 @@ import {
 const ownOverlaySelector =
   '.i18next-editor-highlight, .i18next-editor-button-container, .i18next-editor-button'
 
-// Check if a node is visually covered by another element (e.g. modal backdrop)
-function isOccluded (node) {
-  const rect = node.getBoundingClientRect()
-  if (!rect.width || !rect.height) return true
+// the chrome this script itself puts on the page - the popup (with its header,
+// iframe and drag overlay) and the minimized ribbon. Deliberately matched by id
+// and class rather than by `data-i18next-editor-element`: that attribute is also
+// set by host applications on their own containers (the locize app marks its
+// whole `#root` with it so an embedding editor skips it), and treating those as
+// chrome would suppress highlighting across the entire host page.
+const editorChromeSelector = '#i18next-editor-popup, .locize-incontext-ribbon'
 
-  // Check the center point of the element
-  const x = rect.left + rect.width / 2
-  const y = rect.top + rect.height / 2
+// Is this point covered by something other than the node itself?
+function coveredAt (node, x, y) {
   const topEl = document.elementFromPoint(x, y)
   if (!topEl) return true
 
   // `data-i18next-editor-element` marks two very different things: our own
-  // hover overlays (above), and the editor chrome - popup, its iframe, its drag
+  // hover overlays, and the editor chrome - popup, its iframe, its drag
   // overlay - which really does cover the page. Treating both as "not
   // occluding" is why keys behind the editor popup stayed highlightable.
   if (topEl.closest && topEl.closest(ownOverlaySelector)) return false
@@ -33,6 +36,31 @@ function isOccluded (node) {
 
   // The element at point should be the node itself or a descendant/ancestor
   return !node.contains(topEl) && !topEl.contains(node)
+}
+
+// Check if a node is visually covered by another element (e.g. modal backdrop)
+function isOccluded (node, e) {
+  const rect = node.getBoundingClientRect()
+  if (!rect.width || !rect.height) return true
+
+  // Check the center point of the element
+  if (!coveredAt(node, rect.left + rect.width / 2, rect.top + rect.height / 2)) return false
+
+  // The centre is covered - but a wide element can reach under an overlay while
+  // the part the cursor actually sits on stays visible (a table row running
+  // under the editor popup). Re-test at the cursor, and only when the cursor is
+  // within this element: this can only ever rescue an element the centre test
+  // rejected, never occlude one it cleared, so the proximity tolerance below
+  // keeps working for everything the cursor is not on.
+  if (
+    e && typeof e.clientX === 'number' &&
+    e.clientX >= rect.left && e.clientX <= rect.right &&
+    e.clientY >= rect.top && e.clientY <= rect.bottom
+  ) {
+    return coveredAt(node, e.clientX, e.clientY)
+  }
+
+  return true
 }
 
 // A highlight box is positioned in page coordinates when it is created, so an
@@ -45,7 +73,30 @@ function hasOverlay (item) {
   return !!(item.highlightBox || item.ribbonBox)
 }
 
+// The cursor sitting on the editor's own chrome - the popup, its iframe, its
+// drag overlay - must not highlight anything underneath it. This is checked once
+// per recompute at the cursor, not per item, because the per-item test below
+// looks at each element's *centre*: a wide paragraph that the popup only partly
+// covers has its centre out in the open, so that test cannot see this case at
+// all. Our own overlays are excluded, so hovering a ribbon still keeps its
+// highlight.
+function cursorOverEditorChrome (e) {
+  if (!e || typeof e.clientX !== 'number') return false
+
+  const topEl = document.elementFromPoint(e.clientX, e.clientY)
+  if (!topEl || !topEl.closest) return false
+  if (topEl.closest(ownOverlaySelector)) return false
+
+  return !!topEl.closest(editorChromeSelector)
+}
+
 const debouncedUpdateDistance = debounce(function (e, observer) {
+  if (cursorOverEditorChrome(e)) {
+    Object.values(store.data).concat(Object.values(uninstrumentedStore.data))
+      .forEach(item => { if (hasOverlay(item)) resetHighlight(item, item.node, item.keys) })
+    return
+  }
+
   Object.values(store.data).forEach(item => {
     // if not visible do not calculate distance of mouse - but do clear a
     // highlight it may still be holding, it cannot be under the mouse
@@ -53,8 +104,10 @@ const debouncedUpdateDistance = debounce(function (e, observer) {
       if (hasOverlay(item)) resetHighlight(item, item.node, item.keys)
       return
     }
+    // content may have moved under a still mouse - keep the overlay on its node
+    repositionHighlight(item, item.node)
     // if covered by modal/overlay do not highlight
-    if (isOccluded(item.node)) { resetHighlight(item, item.node, item.keys); return }
+    if (isOccluded(item.node, e)) { resetHighlight(item, item.node, item.keys); return }
 
     const distance = mouseDistanceFromElement(e, item.node)
     if (distance < 5) {
@@ -75,8 +128,10 @@ const debouncedUpdateDistance = debounce(function (e, observer) {
       if (hasOverlay(item)) resetHighlight(item, item.node, item.keys)
       return
     }
+    // content may have moved under a still mouse - keep the overlay on its node
+    repositionHighlight(item, item.node)
     // if covered by modal/overlay do not highlight
-    if (isOccluded(item.node)) { resetHighlight(item, item.node, item.keys); return }
+    if (isOccluded(item.node, e)) { resetHighlight(item, item.node, item.keys); return }
 
     const distance = mouseDistanceFromElement(e, item.node)
     if (distance < 10) {
@@ -89,12 +144,18 @@ const debouncedUpdateDistance = debounce(function (e, observer) {
 
 let currentFC
 let scrollFC
+let overFC
 // last known mouse position, in viewport coordinates
 let lastClientX = 0
 let lastClientY = 0
 let hasLastMouse = false
 
 export function startMouseTracking (observer) {
+  // drop any previous handlers first: start is called again on drag/resize end,
+  // popup restore and turnOn, and each call built a fresh closure - rebinding
+  // without unbinding leaked a listener that nothing could remove afterwards
+  stopMouseTracking()
+
   currentFC = function handle (e) {
     lastClientX = e.clientX
     lastClientY = e.clientY
@@ -116,18 +177,32 @@ export function startMouseTracking (observer) {
     const scrollX = window.scrollX || 0
     const scrollY = window.scrollY || 0
 
-    // mouseDistanceFromElement reads pageX/pageY only
+    // pageX/pageY for mouseDistanceFromElement, clientX/clientY for isOccluded
     debouncedUpdateDistance({
       pageX: lastClientX + scrollX,
-      pageY: lastClientY + scrollY
+      pageY: lastClientY + scrollY,
+      clientX: lastClientX,
+      clientY: lastClientY
     }, observer)
   }
   // Capture phase: `scroll` does not bubble, and the page may well scroll in a
   // container instead of the document itself.
   window.addEventListener('scroll', scrollFC, true)
+
+  // Moving onto the editor's iframe is the last thing this document gets to
+  // see: the iframe is cross-origin, so no mousemove from inside it is ever
+  // delivered here, and a highlight created on the last event before the
+  // boundary would simply stay there for as long as the cursor is in the
+  // editor. `mouseover` on the iframe element itself still fires in this
+  // document - route it through the same check so those highlights get cleared.
+  overFC = function handleOver (e) {
+    if (cursorOverEditorChrome(e)) debouncedUpdateDistance(e, observer)
+  }
+  document.addEventListener('mouseover', overFC, true)
 }
 
 export function stopMouseTracking () {
   document.removeEventListener('mousemove', currentFC)
   if (scrollFC) window.removeEventListener('scroll', scrollFC, true)
+  if (overFC) document.removeEventListener('mouseover', overFC, true)
 }

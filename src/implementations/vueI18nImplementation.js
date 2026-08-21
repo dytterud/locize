@@ -68,7 +68,7 @@ export function getImplementation (i18n, options = {}) {
       // `lazy: true`, the caller must ensure the locale was preloaded
       // (or use the editor only after the language is active).
       const msgs = i18n.getLocaleMessage(lng) || {}
-      // eslint-disable-next-line n/no-callback-literal
+
       cb(msgs[ns] || {})
     },
 

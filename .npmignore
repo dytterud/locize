@@ -1,11 +1,11 @@
 .DS_Store
-.eslintrc
+eslint.config.js
 .gitignore
 .npmignore
 .editorconfig
 .vscode
 README.md
-.eslintignore
+eslint.config.js
 test
 scripts
 examples

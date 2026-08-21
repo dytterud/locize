@@ -82,7 +82,7 @@ export function getClickedElement (e) {
 
     let topStartsAt = 0
     let topBreaksAt
-    // eslint-disable-next-line no-plusplus
+
     for (let i = 0; i < parent.childNodes.length; i++) {
       const n = parent.childNodes[i]
       const nOffset = offset(n)
@@ -101,7 +101,7 @@ export function getClickedElement (e) {
     // console.warn('bound', topStartsAt, topBreaksAt)
 
     // inside our boundaries check when left is to big and out of clicks left
-    // eslint-disable-next-line no-plusplus
+
     for (let y = topStartsAt; y < topBreaksAt; y++) {
       const n = parent.childNodes[y]
       const nOffset = offset(n)
@@ -119,7 +119,7 @@ export function getClickedElement (e) {
 export function getElementText (el) {
   const str = el.textContent || (el.text && el.text.innerText) || el.placeholder
   if (typeof str !== 'string') return
-  // eslint-disable-next-line consistent-return
+
   return str.replace(/\n +/g, '').trim()
 }
 
@@ -253,7 +253,7 @@ export function debugLog (...args) {
 let _isInIframe = false
 if (typeof window !== 'undefined') {
   try {
-    // eslint-disable-next-line no-undef, no-restricted-globals
+    // eslint-disable-next-line no-undef
     _isInIframe = self !== top
   } catch (e) {
     // Cross-origin parent: accessing `top` throws SecurityError. If we

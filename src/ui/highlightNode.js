@@ -29,6 +29,60 @@ import { getOptimizedBoundingRectEle } from './utils.js'
 // const originalStyles = {}
 const selected = {}
 
+// Place the ribbon next to its element. Shared by the initial highlight and by
+// repositionHighlight, so a ribbon that follows drifting content lands exactly
+// where it would have on creation.
+function positionRibbon (rectEle, actions, arrowEle) {
+  return computePosition(rectEle, actions, {
+    placement: 'right',
+    middleware: [
+      flip({ fallbackPlacements: ['left', 'bottom'] }),
+      shift(),
+      offset(({ placement, rects }) => {
+        if (placement === 'bottom') return -rects.reference.height / 2 - rects.floating.height / 2
+        return 35
+      }),
+      arrow({
+        element: arrowEle
+      })
+    ]
+  }).then(({ x, y, middlewareData, placement }) => {
+    Object.assign(actions.style, {
+      left: `${x}px`,
+      top: `${y}px`,
+      display: 'inline-flex'
+    })
+
+    const side = placement.split('-')[0]
+
+    const staticSide = {
+      top: 'bottom',
+      right: 'left',
+      bottom: 'top',
+      left: 'right'
+    }[side]
+
+    if (middlewareData.arrow) {
+      const { x, y } = middlewareData.arrow
+      Object.assign(arrowEle.style, {
+        left: x != null ? `${x}px` : '',
+        top: y != null ? `${y}px` : '',
+        // Ensure the static side gets unset when
+        // flipping to other placements' axes.
+        right: '',
+        bottom: '',
+        [staticSide]: `${side === 'bottom' ? -18 : -25}px`,
+        transform:
+          side === 'bottom'
+            ? 'rotate(90deg)'
+            : side === 'left'
+              ? 'rotate(180deg)'
+              : ''
+      })
+    }
+  })
+}
+
 export function highlight (item, node, keys) {
   // const { id } = item
 
@@ -70,57 +124,11 @@ export function highlight (item, node, keys) {
     const { box: actions, arrow: arrowEle } = RibbonBox(keys)
     document.body.appendChild(actions)
 
-    computePosition(rectEle, actions, {
-      placement: 'right',
-      middleware: [
-        flip({ fallbackPlacements: ['left', 'bottom'] }),
-        shift(),
-        offset(({ placement, rects }) => {
-          if (placement === 'bottom') return -rects.reference.height / 2 - rects.floating.height / 2
-          return 35
-        }),
-        arrow({
-          element: arrowEle
-        })
-      ]
-    }).then(({ x, y, middlewareData, placement }) => {
-      Object.assign(actions.style, {
-        left: `${x}px`,
-        top: `${y}px`,
-        display: 'inline-flex'
-      })
-
-      const side = placement.split('-')[0]
-
-      const staticSide = {
-        top: 'bottom',
-        right: 'left',
-        bottom: 'top',
-        left: 'right'
-      }[side]
-
-      if (middlewareData.arrow) {
-        const { x, y } = middlewareData.arrow
-        Object.assign(arrowEle.style, {
-          left: x != null ? `${x}px` : '',
-          top: y != null ? `${y}px` : '',
-          // Ensure the static side gets unset when
-          // flipping to other placements' axes.
-          right: '',
-          bottom: '',
-          [staticSide]: `${side === 'bottom' ? -18 : -25}px`,
-          transform:
-            side === 'bottom'
-              ? 'rotate(90deg)'
-              : side === 'left'
-                ? 'rotate(180deg)'
-                : ''
-        })
-      }
-    })
+    positionRibbon(rectEle, actions, arrowEle)
 
     // store them for remove
     item.ribbonBox = actions
+    item.ribbonArrow = arrowEle
   }
 }
 
@@ -200,6 +208,34 @@ export function selectedHighlight (item, node, keys) {
   selected[id] = true
 }
 
+// A highlight box is positioned in page coordinates once, when it is created,
+// and nothing moved it afterwards - so content that shifts under a still mouse
+// (a container scrolling, a layout change) left the overlay behind on its old
+// spot. Update the existing elements in place instead of removing and
+// rebuilding them: no flicker, no ribbon rebuild, and a selected key's box -
+// which no distance rule is allowed to clear - keeps following its text.
+export function repositionHighlight (item, node) {
+  if (!item.highlightBox) return
+
+  const rectEle = getOptimizedBoundingRectEle(node)
+  const rect = rectEle.getBoundingClientRect()
+  const top = `${rect.top - 2 + window.scrollY}px`
+  const left = `${rect.left - 2 + window.scrollX}px`
+
+  // page scrolling moves rect and scrollY by the same amount, so the page
+  // coordinates stay put and this is a no-op - only real drift gets through
+  if (item.highlightBox.style.top === top && item.highlightBox.style.left === left) return
+
+  Object.assign(item.highlightBox.style, {
+    top,
+    left,
+    height: `${rect.height + 4}px`,
+    width: `${rect.width + 4}px`
+  })
+
+  if (item.ribbonBox && item.ribbonArrow) positionRibbon(rectEle, item.ribbonBox, item.ribbonArrow)
+}
+
 export function recalcSelectedHighlight (item, node, keys) {
   if (!selected[item.id]) return
   resetHighlight(item, node, keys, false)
@@ -228,6 +264,7 @@ export function resetHighlight (item, node, keys, ignoreSelected = true) {
     document.body.removeChild(item.ribbonBox)
 
     delete item.ribbonBox
+    delete item.ribbonArrow
   }
 
   delete selected[id]
