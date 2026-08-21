@@ -2,7 +2,7 @@
 
 # locize
 
-The locize script enables the [incontext editing](https://www.locize.com/docs/context#incontext) feature provided by [locize](https://locize.com).
+The locize script enables the [incontext editing](https://www.locize.com/docs/context#incontext) feature provided by [Locize](https://www.locize.com).
 
 ## Getting started
 
@@ -22,7 +22,7 @@ npm i locize
 
 # How it works
 
-The script will parse the page content and pass found segments to locize using the browsers postMessage API. To work a text on your page has to be exactly matched to a segment in the editor by determing the matching namespace and key.
+The script will parse the page content and pass found segments to Locize using the browsers postMessage API. To work a text on your page has to be exactly matched to a segment in the editor by determing the matching namespace and key.
 
 There are three ways to get the namespace and key:
 
@@ -51,7 +51,7 @@ eg.:
 
 Specifing content as [html](https://github.com/i18next/jquery-i18next?tab=readme-ov-file#set-innerhtml-attributes) or [title/placeholder attribute](https://github.com/i18next/jquery-i18next?tab=readme-ov-file#set-different-attribute) is also supported like used in `jquery-i18next`
 
-## 3) Lookup in locize
+## 3) Lookup in Locize
 
 If not using recommended 1) or 2) the script will send the raw texts to the editor which will try an exact search for that text and send the found exact match back (only one result with 100% exact match).
 
@@ -73,7 +73,7 @@ import { locizePlugin } from 'locize'
 i18next.use(locizePlugin)
 ```
 
-**Hint:** this will show the locize incontext editor as a popup in your website only if the url contains the incontext=true query paramenter, i.e. http://localhost:8080?incontext=true
+**Hint:** this will show the Locize incontext editor as a popup in your website only if the url contains the incontext=true query paramenter, i.e. http://localhost:8080?incontext=true
 
 Open as default:
 
@@ -94,7 +94,7 @@ i18next.init({
 })
 ```
 
-**Hint** you can match the integration to a locize project by:
+**Hint** you can match the integration to a Locize project by:
 
 Having [i18next-locize-backend](https://github.com/locize/i18next-locize-backend) configured or adding
 
@@ -135,7 +135,7 @@ If the editor popup stays blank or "could not connect" is shown:
 
 ## not using i18next (messageformat, fluent, ...)
 
-Not using i18next currently only the option to show your website inside the locize incontext view (https://www.locize.com/docs/incontext).
+Not using i18next currently only the option to show your website inside the Locize incontext view (https://www.locize.com/docs/incontext).
 
 ### using import
 
@@ -158,7 +158,7 @@ startStandalone()
 setEditorLng(lng)
 ```
 
-**Hint** you can match the integration to a locize project by adding:
+**Hint** you can match the integration to a Locize project by adding:
 
 ```js
 startStandalone({
@@ -179,7 +179,7 @@ startStandalone({
 
 ### vanilla javascript
 
-Only relevant when your website is shown inside the locize incontext solution via incontext view (https://www.locize.com/docs/incontext).
+Only relevant when your website is shown inside the Locize incontext solution via incontext view (https://www.locize.com/docs/incontext).
 
 ```html
 <script src="https://unpkg.com/locize/locize.min.js" />
@@ -197,7 +197,7 @@ window.locizeSavedHandler = res => {
 window.locizeStartStandalone()
 ```
 
-**Hint** you can match the integration to a locize project by adding:
+**Hint** you can match the integration to a Locize project by adding:
 
 ```js
 <script
