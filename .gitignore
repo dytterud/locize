@@ -28,3 +28,8 @@ dist/**/*
 # Local Claude Code context (not for the public repo)
 CLAUDE.md
 CLAUDE.local.md
+
+# Lockfiles are not committed: this is a library, consumers resolve their own
+# tree, and the debuggingApps lockfiles only produced dependabot noise for demo
+# code that is never published.
+package-lock.json
