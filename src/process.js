@@ -1,5 +1,6 @@
 import { parseTree, setImplementation } from './parser.js'
 import { createObserver } from './observer.js'
+import { observeShadowRoots, setShadowDOMEnabled } from './shadowRoots.js'
 import { startMouseTracking } from './ui/mouseDistance.js'
 import { initDragElement, initResizeElement } from './ui/popup.js'
 import { Popup, popupId, showPopupError } from './ui/elements/popup.js'
@@ -26,7 +27,7 @@ export function start (
   const scriptEle = document.getElementById('locize')
 
   let config = {}
-  ;['projectId', 'version', 'ribbonPosition'].forEach(attr => {
+  ;['projectId', 'version', 'ribbonPosition', 'shadowDOM'].forEach(attr => {
     if (!scriptEle) return
     let value =
       scriptEle.getAttribute(attr.toLowerCase()) ||
@@ -41,6 +42,8 @@ export function start (
   api.config = config
   api.init(implementation)
   setImplementation(implementation)
+  // opt-in: off by default, so nothing about the light-DOM behaviour changes
+  setShadowDOMEnabled(config.shadowDOM)
 
   // start stuff
   implementation?.bindLanguageChange(lng => {
@@ -58,6 +61,11 @@ export function start (
       api.sendCurrentParsedContent()
     })
     observer.start()
+
+    // the observer above only sees the light DOM - with the `shadowDOM` option
+    // on, shadow roots are observed one by one, including those attached after
+    // this point (no-op while the option is off)
+    observeShadowRoots(observer)
 
     startMouseTracking(observer)
 

@@ -1,5 +1,12 @@
-import { debounce } from './utils.js'
+import { debounce, debugLog } from './utils.js'
 import { validAttributes } from './vars.js'
+
+const defaultObserverConfig = {
+  attributes: true,
+  childList: true,
+  characterData: true,
+  subtree: true
+}
 
 const mutationTriggeringElements = {}
 
@@ -173,17 +180,30 @@ export function createObserver (ele, handle) {
     if (triggerMutation) debouncedHandler()
   })
 
+  // remember the config `start` was called with, so additional roots
+  // (shadow roots) can be observed with the very same settings
+  let activeConfig = defaultObserverConfig
+
   return {
-    start: (
-      observerConfig = {
-        attributes: true,
-        childList: true,
-        characterData: true,
-        subtree: true
-      }
-    ) => {
+    start: (observerConfig = defaultObserverConfig) => {
+      activeConfig = observerConfig
       handle([ele]) // handle initial content - might be we're not using i18next that triggers mutations on translation (think of static content)
       observer.observe(ele, observerConfig)
+    },
+    // Observe an additional root with the same MutationObserver and parse it
+    // right away. Used for shadow roots: a shadow boundary stops both DOM
+    // traversal and mutation records, so the `document.body` observer never
+    // learns about anything happening inside one.
+    observeRoot (root) {
+      if (!root) return
+
+      try {
+        handle([root])
+      } catch (err) {
+        debugLog('failed to parse additional root', root, err)
+      }
+
+      observer.observe(root, activeConfig)
     },
     skipNext () {
       internalChange = true

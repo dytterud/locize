@@ -168,6 +168,24 @@
     </div>
   </div>
 
+  <hr />
+  <div id="shadow-dom-test">
+    <h4>Shadow DOM test:</h4>
+    <p>
+      All the text below lives inside an <em>open</em> shadow root, so neither
+      <code>childNodes</code> traversal from <code>document.body</code> nor the
+      MutationObserver on it reaches the content - each shadow root has to be
+      observed on its own. Needs the opt-in <code>shadowDOM: true</code> option
+      (set below); with the option off, none of it shows up in the editor.
+    </p>
+    <p>1. shadow root attached before locize starts:</p>
+    <shadow-early></shadow-early>
+    <p>2. shadow root attached ~7s after locize started (the common case - the editor script runs before the components mount):</p>
+    <div id="shadow-late-host"></div>
+    <p>3. nested shadow root (a component inside a component):</p>
+    <shadow-nested></shadow-nested>
+  </div>
+
   <div id="non-loc-i18next">
     <h4>Some instrumented stuff</h4>
     <p data-i18n="translation:aNonI18nextKey;[title]common:anotherNonI18nextKey" title="some non i18next title">
@@ -272,6 +290,80 @@
         arm(fresh)
       })
     })()
+
+    // Shadow DOM: content rendered inside an open shadow root. `attachShadow`
+    // happens at three different points in time on purpose - before locize
+    // starts, long after it started, and nested inside another shadow root.
+    function shadowMarkup (label) {
+      return (
+        '<style>p { margin: 4px 0 } .box { padding: 8px; border: 1px dashed #6a9ac9 }</style>' +
+        '<div class="box">' +
+        '<p><em>' + label + '</em></p>' +
+        '<p data-i18n="title">instrumented (data-i18n), loading...</p>' +
+        '<p data-i18n="[title]test.title;common:button.hoverMe" title="Works on title">instrumented with title attribute, loading...</p>' +
+        '<p>Welcome to test the i18next incontext editor</p>' +
+        '</div>'
+      )
+    }
+
+    function localizeShadow (root) {
+      // loc-i18next only walks the light DOM, so translate by hand here
+      root.querySelectorAll('[data-i18n]').forEach(function (ele) {
+        const spec = ele.getAttribute('data-i18n')
+        spec.split(';').forEach(function (part) {
+          if (!part) return
+          const attrMatch = part.match(/^\[(.+)\](.+)$/)
+          if (attrMatch) {
+            ele.setAttribute(attrMatch[1], i18next.t(attrMatch[2]))
+          } else {
+            ele.textContent = i18next.t(part)
+          }
+        })
+      })
+    }
+
+    class ShadowEarly extends HTMLElement {
+      connectedCallback () {
+        if (this.shadowRoot) return
+        this.attachShadow({ mode: 'open' }).innerHTML = shadowMarkup(
+          'inside shadow root, attached before locize started'
+        )
+      }
+    }
+    customElements.define('shadow-early', ShadowEarly)
+
+    class ShadowNested extends HTMLElement {
+      connectedCallback () {
+        if (this.shadowRoot) return
+        const outer = this.attachShadow({ mode: 'open' })
+        outer.innerHTML = '<p>outer shadow root:</p>'
+        const inner = document.createElement('div')
+        outer.appendChild(inner)
+        inner.attachShadow({ mode: 'open' }).innerHTML = shadowMarkup(
+          'inside a shadow root nested in another shadow root'
+        )
+      }
+    }
+    customElements.define('shadow-nested', ShadowNested)
+
+    setTimeout(function () {
+      document.querySelectorAll('shadow-early, shadow-nested').forEach(function (host) {
+        localizeShadow(host.shadowRoot)
+        host.shadowRoot.querySelectorAll('div').forEach(function (ele) {
+          if (ele.shadowRoot) localizeShadow(ele.shadowRoot)
+        })
+      })
+      console.log('shadow DOM test: translated content inside the shadow roots present at startup')
+    }, 2000)
+
+    setTimeout(function () {
+      const host = document.createElement('div')
+      const root = host.attachShadow({ mode: 'open' })
+      root.innerHTML = shadowMarkup('inside shadow root, attached after locize started')
+      document.getElementById('shadow-late-host').appendChild(host)
+      localizeShadow(root)
+      console.log('shadow DOM test: attached a shadow root after locize started')
+    }, 7000)
   </script>
 
   <!-- <script
@@ -286,7 +378,7 @@ type="module"
     // import { locizePlugin } from '/../../src/locizePlugin.js'
 
     i18next
-      .use(locizeEditorPlugin({ show: true }))
+      .use(locizeEditorPlugin({ show: true, shadowDOM: true }))
       // .use(locizePlugin)
       .init(
         {

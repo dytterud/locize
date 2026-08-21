@@ -70,6 +70,14 @@ export function locizeEditorPlugin(opt?: {
    * `.locize-incontext-ribbon` CSS class instead.
    */
   ribbonPosition?: 'bottom-right' | 'bottom-left'
+  /**
+   * Also parse and observe content inside **open shadow roots**. Off by
+   * default: a shadow boundary blocks DOM traversal and mutation records, so
+   * supporting it means walking into every shadow root and hooking
+   * `Element.prototype.attachShadow` to catch the roots attached later -
+   * unnecessary for pages that don't use shadow DOM.
+   */
+  shadowDOM?: boolean
 }): LocizePlugin
 
 /**
@@ -104,6 +112,7 @@ export function startStandalone(opt?: {
   projectId?: string
   version?: string
   ribbonPosition?: 'bottom-right' | 'bottom-left'
+  shadowDOM?: boolean
   implementation?: Implementation
 }): void
 
