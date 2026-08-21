@@ -45,12 +45,11 @@ function coveredAt (node, x, y) {
   const topEl = deepElementFromPoint(x, y)
   if (!topEl) return true
 
-  // `data-i18next-editor-element` marks two very different things: our own
-  // hover overlays, and the editor chrome - popup, its iframe, its drag
-  // overlay - which really does cover the page. Treating both as "not
-  // occluding" is why keys behind the editor popup stayed highlightable.
+  // Our own hover overlays sit on top of the node they belong to and must not
+  // count as covering it; the editor chrome really does cover the page, and
+  // treating both alike is why keys behind the popup stayed highlightable.
   if (topEl.closest && topEl.closest(ownOverlaySelector)) return false
-  if (topEl.dataset && topEl.dataset.i18nextEditorElement === 'true') return true
+  if (topEl.closest && topEl.closest(editorChromeSelector)) return true
 
   // The element at point should be the node itself or a descendant/ancestor
   return !node.contains(topEl) && !topEl.contains(node)

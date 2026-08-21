@@ -223,54 +223,6 @@
     return style.sheet;
   }();
 
-  function ownKeys$6(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
-  function _objectSpread$6(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys$6(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys$6(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
-  var data$1 = {};
-  function clean$1() {
-    Object.values(data$1).forEach(function (item) {
-      if (!document.body.contains(item.node)) {
-        resetHighlight(item, item.node, item.keys, false);
-        delete data$1[item.id];
-      }
-    });
-  }
-  function save$1(id, type, node, txt) {
-    if (!id || !type || !node) return;
-    if (!data$1[id]) {
-      data$1[id] = {
-        id: id,
-        node: node
-      };
-    }
-    data$1[id].keys = _objectSpread$6(_objectSpread$6({}, data$1[id].keys), {}, _defineProperty({}, "".concat(type), {
-      value: txt,
-      eleUniqueID: id,
-      textType: type
-    }));
-  }
-  function remove(id) {
-    var item = get$1(id);
-    if (item) resetHighlight(item, item.node, item.keys, false);
-    delete data$1[id];
-  }
-  function removeKey(id, key) {
-    var item = get$1(id);
-    if (!item) return;
-    delete item.keys["".concat(key)];
-    if (!Object.keys(item.keys).length) remove(id);
-  }
-  function get$1(id) {
-    return data$1[id];
-  }
-  var uninstrumentedStore = {
-    save: save$1,
-    remove: remove,
-    removeKey: removeKey,
-    clean: clean$1,
-    get: get$1,
-    data: data$1
-  };
-
   function _arrayWithHoles(r) {
     if (Array.isArray(r)) return r;
   }
@@ -459,6 +411,115 @@
     }
   }
   var isInIframe = _isInIframe;
+
+  var HOOK_FLAG = '__locizeAttachShadowHooked';
+  var observers = [];
+  var enabled = false;
+  function setShadowDOMEnabled(value) {
+    enabled = !!value;
+  }
+  function isShadowDOMEnabled() {
+    return enabled;
+  }
+  function isNodeStillInDocument(node) {
+    if (!node) return false;
+    return enabled ? !!node.isConnected : document.body.contains(node);
+  }
+  function eachShadowRoot(root, fn) {
+    var elements;
+    try {
+      elements = root.querySelectorAll('*');
+    } catch (err) {
+      debugLog('could not query for shadow roots in', root, err);
+      return;
+    }
+    for (var i = 0; i < elements.length; i++) {
+      var shadowRoot = elements[i].shadowRoot;
+      if (!shadowRoot) continue;
+      fn(shadowRoot);
+      eachShadowRoot(shadowRoot, fn);
+    }
+  }
+  function notify(shadowRoot) {
+    observers.forEach(function (observer) {
+      try {
+        observer.observeRoot(shadowRoot);
+      } catch (err) {
+        debugLog('failed to observe shadow root', shadowRoot, err);
+      }
+    });
+  }
+  function hookAttachShadow() {
+    if (typeof Element === 'undefined') return;
+    if (!Element.prototype || !Element.prototype.attachShadow) return;
+    if (Element.prototype[HOOK_FLAG]) return;
+    var nativeAttachShadow = Element.prototype.attachShadow;
+    Element.prototype.attachShadow = function attachShadow() {
+      var shadowRoot = nativeAttachShadow.apply(this, arguments);
+      notify(shadowRoot);
+      return shadowRoot;
+    };
+    Object.defineProperty(Element.prototype, HOOK_FLAG, {
+      value: true,
+      enumerable: false,
+      configurable: true
+    });
+  }
+  function observeShadowRoots(observer) {
+    if (!enabled) return;
+    if (typeof document === 'undefined') return;
+    if (observers.indexOf(observer) < 0) observers.push(observer);
+    eachShadowRoot(document, notify);
+    hookAttachShadow();
+  }
+
+  function ownKeys$6(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
+  function _objectSpread$6(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys$6(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys$6(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
+  var data$2 = {};
+  function clean$1() {
+    Object.values(data$2).forEach(function (item) {
+      if (!isNodeStillInDocument(item.node)) {
+        resetHighlight(item, item.node, item.keys, false);
+        delete data$2[item.id];
+      }
+    });
+  }
+  function save$1(id, type, node, txt) {
+    if (!id || !type || !node) return;
+    if (!data$2[id]) {
+      data$2[id] = {
+        id: id,
+        node: node
+      };
+    }
+    data$2[id].keys = _objectSpread$6(_objectSpread$6({}, data$2[id].keys), {}, _defineProperty({}, "".concat(type), {
+      value: txt,
+      eleUniqueID: id,
+      textType: type
+    }));
+  }
+  function remove(id) {
+    var item = get$1(id);
+    if (item) resetHighlight(item, item.node, item.keys, false);
+    delete data$2[id];
+  }
+  function removeKey(id, key) {
+    var item = get$1(id);
+    if (!item) return;
+    delete item.keys["".concat(key)];
+    if (!Object.keys(item.keys).length) remove(id);
+  }
+  function get$1(id) {
+    return data$2[id];
+  }
+  var uninstrumentedStore = {
+    save: save$1,
+    remove: remove,
+    removeKey: removeKey,
+    clean: clean$1,
+    get: get$1,
+    data: data$2
+  };
 
   function ownKeys$5(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
   function _objectSpread$5(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys$5(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys$5(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
@@ -855,13 +916,23 @@
     return refEle;
   }
 
+  function deepElementFromPoint(x, y) {
+    var el = document.elementFromPoint(x, y);
+    if (!isShadowDOMEnabled()) return el;
+    while (el && el.shadowRoot) {
+      var inner = el.shadowRoot.elementFromPoint(x, y);
+      if (!inner || inner === el) break;
+      el = inner;
+    }
+    return el;
+  }
   var ownOverlaySelector = '.i18next-editor-highlight, .i18next-editor-button-container, .i18next-editor-button';
   var editorChromeSelector = '#i18next-editor-popup, .locize-incontext-ribbon';
   function coveredAt(node, x, y) {
-    var topEl = document.elementFromPoint(x, y);
+    var topEl = deepElementFromPoint(x, y);
     if (!topEl) return true;
     if (topEl.closest && topEl.closest(ownOverlaySelector)) return false;
-    if (topEl.dataset && topEl.dataset.i18nextEditorElement === 'true') return true;
+    if (topEl.closest && topEl.closest(editorChromeSelector)) return true;
     return !node.contains(topEl) && !topEl.contains(node);
   }
   function isOccluded(node, e) {
@@ -878,7 +949,7 @@
   }
   function cursorOverEditorChrome(e) {
     if (!e || typeof e.clientX !== 'number') return false;
-    var topEl = document.elementFromPoint(e.clientX, e.clientY);
+    var topEl = deepElementFromPoint(e.clientX, e.clientY);
     if (!topEl || !topEl.closest) return false;
     if (topEl.closest(ownOverlaySelector)) return false;
     return !!topEl.closest(editorChromeSelector);
@@ -3368,40 +3439,40 @@
 
   function ownKeys$3(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
   function _objectSpread$3(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys$3(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys$3(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
-  var data = {};
+  var data$1 = {};
   function clean() {
-    Object.values(data).forEach(function (item) {
-      if (!document.body.contains(item.node)) {
+    Object.values(data$1).forEach(function (item) {
+      if (!isNodeStillInDocument(item.node)) {
         resetHighlight(item, item.node, item.keys, false);
-        delete data[item.id];
+        delete data$1[item.id];
       }
     });
   }
   function save(id, subliminal, type, meta, node, children) {
     if (!id || !type || !meta || !node) return;
-    if (!data[id]) {
-      data[id] = {
+    if (!data$1[id]) {
+      data$1[id] = {
         id: id,
         node: node,
         subliminal: subliminal
       };
     }
-    if (subliminal) data[id].subliminal = subliminal;
-    data[id].keys = _objectSpread$3(_objectSpread$3({}, data[id].keys), {}, _defineProperty({}, "".concat(type), meta));
+    if (subliminal) data$1[id].subliminal = subliminal;
+    data$1[id].keys = _objectSpread$3(_objectSpread$3({}, data$1[id].keys), {}, _defineProperty({}, "".concat(type), meta));
     if (children) {
-      data[id].children = _objectSpread$3(_objectSpread$3({}, data[id].children), {}, _defineProperty({}, "".concat(type, "-").concat(children.map(function (c) {
+      data$1[id].children = _objectSpread$3(_objectSpread$3({}, data$1[id].children), {}, _defineProperty({}, "".concat(type, "-").concat(children.map(function (c) {
         return c.childIndex;
       }).join(',')), children));
     }
   }
   function get(id) {
-    return data[id];
+    return data$1[id];
   }
   var store = {
     save: save,
     clean: clean,
     get: get,
-    data: data
+    data: data$1
   };
 
   (function () {
@@ -3455,6 +3526,7 @@
     for (var i = 0; i < children.length; i++) {
       walk(children[i], func);
     }
+    if (isShadowDOMEnabled() && node.shadowRoot) walk(node.shadowRoot, func);
   }
   function extractHiddenMeta(id, type, meta, children) {
     var _i18n, _i18n2, _i18n3;
@@ -3628,6 +3700,12 @@
     return store.data;
   }
 
+  var defaultObserverConfig = {
+    attributes: true,
+    childList: true,
+    characterData: true,
+    subtree: true
+  };
   var mutationTriggeringElements = {};
   function ignoreMutation(ele) {
     if (ele.uniqueID) {
@@ -3728,16 +3806,22 @@
       });
       if (triggerMutation) debouncedHandler();
     });
+    var activeConfig = defaultObserverConfig;
     return {
       start: function start() {
-        var observerConfig = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {
-          attributes: true,
-          childList: true,
-          characterData: true,
-          subtree: true
-        };
+        var observerConfig = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : defaultObserverConfig;
+        activeConfig = observerConfig;
         handle([ele]);
         observer.observe(ele, observerConfig);
+      },
+      observeRoot: function observeRoot(root) {
+        if (!root) return;
+        try {
+          handle([root]);
+        } catch (err) {
+          debugLog('failed to parse additional root', root, err);
+        }
+        observer.observe(root, activeConfig);
       },
       skipNext: function skipNext() {
         internalChange = true;
@@ -4055,6 +4139,7 @@
   function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
   function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
   var dummyImplementation = getImplementation();
+  var data = [];
   function start() {
     var implementation = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : dummyImplementation;
     var opt = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {
@@ -4065,7 +4150,7 @@
     var showInContext = opt.show || getQsParameterByName(opt.qsProp || 'incontext') === 'true';
     var scriptEle = document.getElementById('locize');
     var config = {};
-    ['projectId', 'version', 'ribbonPosition'].forEach(function (attr) {
+    ['projectId', 'version', 'ribbonPosition', 'shadowDOM'].forEach(function (attr) {
       if (!scriptEle) return;
       var value = scriptEle.getAttribute(attr.toLowerCase()) || scriptEle.getAttribute('data-' + attr.toLowerCase());
       if (value === 'true') value = true;
@@ -4076,6 +4161,7 @@
     api.config = config;
     api.init(implementation);
     setImplementation(implementation);
+    setShadowDOMEnabled(config.shadowDOM);
     implementation === null || implementation === void 0 || implementation.bindLanguageChange(function (lng) {
       api.sendCurrentTargetLanguage(implementation.getLng());
     });
@@ -4083,11 +4169,12 @@
       if (!isInIframe && !showInContext) return;
       var observer = createObserver(document.body, function (eles) {
         eles.forEach(function (ele) {
-          parseTree(ele);
+          data = parseTree(ele);
         });
         api.sendCurrentParsedContent();
       });
       observer.start();
+      observeShadowRoots(observer);
       startMouseTracking(observer);
       if (!isInIframe && !document.getElementById(popupId)) {
         debugLog('starting InContext popup with config', config, 'iframe:', getIframeUrl());
